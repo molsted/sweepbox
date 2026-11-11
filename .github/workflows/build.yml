@@ -98,7 +98,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
           export SPARKLE_PUBLIC_KEY="$(grep -v '^#' installer/sparkle-public-key.txt | tr -d '[:space:]')"
-          for spec in "macos arm64 dmg" "macos x64 dmg" "windows x64 exe" "windows arm64 exe"; do
+          for spec in "macos arm64 zip" "macos x64 zip" "windows x64 exe" "windows arm64 exe"; do
             set -- $spec
             mkdir -p "appcast-$1-$2"
             cp dist/*-$1-$2*.$3 "appcast-$1-$2/"

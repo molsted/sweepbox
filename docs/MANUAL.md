@@ -175,7 +175,7 @@ Sweepbox updates itself from this repository's releases; every download is verif
 
 - **Automatically**: with *Automatically check for app updates* on (the default), Sweepbox checks once a day. When a new release is found, an update window shows the release notes with buttons to skip the version, remind later, or install.
 - **On demand**: choose **Check for Updates…** in the menu bar / tray menu at any time — including with automatic checks off. It reports whether you are up to date, shows the update window, or says so if the check could not reach GitHub.
-- **Installing**: on Windows the new installer runs after Sweepbox closes and relaunches the app. On macOS the downloaded disk image opens; drag Sweepbox to *Applications* to replace the old version.
+- **Installing**: on Windows the new installer runs after Sweepbox closes and relaunches the app. On macOS the new version replaces the app in place automatically and relaunches — no dragging, no Installer.
 
 You can always see and download the latest release manually on the [releases page](https://github.com/molsted/sweepbox/releases).
 
