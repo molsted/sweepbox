@@ -34,7 +34,7 @@
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="NetSparkleUpdater.SparkleUpdater" Version="3.1.0" />
     <PackageReference Include="NetSparkleUpdater.UI.Avalonia" Version="3.1.0" />
     <!-- Transitive (Linux D-Bus) dependency of Avalonia; pinned to the patched release (GHSA-xrw6-gwf8-vvr9). -->
