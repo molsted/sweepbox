@@ -1,6 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:NetSparkleUpdater.UI.Avalonia.ViewModels"
         x:Class="Sweepbox.Desktop.Updates.SweepboxUpdateWindow"
+        x:DataType="vm:UpdateAvailableWindowViewModel"
         Title="Sweepbox update"
         Icon="/Assets/app-icon.png"
         Width="480" SizeToContent="Height" CanResize="False" ShowInTaskbar="False"
