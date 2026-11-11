@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - run: dotnet test Sweepbox.slnx -c Release
+      - run: dotnet test Sweepbox.slnx -c Release -p:RestoreLockedMode=true
 
   macos:
     needs: test

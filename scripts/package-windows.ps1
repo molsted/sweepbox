@@ -38,7 +38,11 @@ foreach ($a in $Arch) {
     Write-Host "==> Publishing win-$a"
     $Publish = "$Out\windows-$a"
     Remove-Item -Recurse -Force $Publish -ErrorAction SilentlyContinue
-    dotnet publish $Project -c Release -r "win-$a" --self-contained -p:DebugType=none -o $Publish -nologo -v quiet
+    # Restore against the committed lock file so installer builds cannot pick up drifted
+    # transitive packages; publish then reuses that graph for its RID (--no-restore).
+    dotnet restore $Project -p:RestoreLockedMode=true -nologo -v quiet
+    if ($LASTEXITCODE) { throw "dotnet restore failed" }
+    dotnet publish $Project -c Release -r "win-$a" --self-contained --no-restore -p:DebugType=none -o $Publish -nologo -v quiet
     if ($LASTEXITCODE) { throw "dotnet publish failed" }
     Sign "$Publish\Sweepbox.exe"
 

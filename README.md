@@ -58,6 +58,8 @@ On macOS the binary is `/Applications/Sweepbox.app/Contents/MacOS/Sweepbox`.
 
 Requirements: .NET 10 SDK. Python 3 with Pillow is only needed to regenerate graphics.
 
+Package versions are pinned by the committed `packages.lock.json` files: after changing a `PackageReference`, run `dotnet restore` and commit the updated lock files along with the project change. CI restores with `RestoreLockedMode` and fails on drift.
+
 ```bash
 dotnet run --project src/Sweepbox.Desktop    # run the app
 dotnet test                                     # unit tests
