@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Sweepbox.Desktop.Updates.SweepboxCheckingWindow"
+        Title="Checking for updates"
+        Icon="/Assets/app-icon.png"
+        Width="360" SizeToContent="Height" CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Margin="24" Spacing="12">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+            <Image Source="/Assets/app-icon.png" Width="28" Height="28" VerticalAlignment="Center" />
+            <TextBlock Text="Checking for updates…" VerticalAlignment="Center" />
+        </StackPanel>
+        <ProgressBar IsIndeterminate="True" Height="4" />
+    </StackPanel>
+</Window>
