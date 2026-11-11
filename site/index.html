@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sweepbox: package managers, swept clean</title>
+  <meta name="description" content="Sweepbox keeps Homebrew, Chocolatey and npm up to date and tidy on a schedule, from the macOS menu bar or Windows tray, and shows how much disk space the clean-up freed. Free and open source.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Sweepbox: package managers, swept clean">
+  <meta property="og:description" content="Homebrew, Chocolatey and npm, updated and swept clean on a schedule. macOS and Windows, free and open source.">
+  <meta property="og:image" content="{{BASE_URL}}assets/og-image.png">
+  <meta property="og:url" content="{{BASE_URL}}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#ea580c">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-repo="{{REPO}}">
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="assets/icon-256.png" alt="" width="32" height="32">Sweepbox</a>
+    <nav class="nav" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#download">Download</a>
+      <a class="nav-docs" href="docs.html">Docs</a>
+      <a href="license.html">License</a>
+      <a class="gh" href="https://github.com/{{REPO}}" aria-label="Source on GitHub">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="stamp"><span class="dot"></span><span data-release="label">Latest release</span> · macOS &amp; Windows</span>
+        <h1>Package managers,
+          <span class="swept">swept<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M4 14 C 50 4, 120 4, 196 10"/></svg></span>
+          clean.</h1>
+        <p class="lede">Sweepbox updates Homebrew, Chocolatey and npm on a schedule, clears out old versions and caches, and tells you how much space it won back. It lives in your menu bar or tray.</p>
+        <div class="cta">
+          <a class="btn btn-primary" id="primary-download" href="https://github.com/{{REPO}}/releases/latest">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
+            <span data-download="label">Download Sweepbox</span>
+          </a>
+          <a class="btn btn-ghost" href="docs.html">Read the manual</a>
+        </div>
+        <p class="cta-note"><span data-download="note">Free, open source (GPL-3.0).</span> <a href="#download">Other platforms</a> · <a href="https://github.com/{{REPO}}/releases">All releases</a></p>
+      </div>
+
+      <div class="hero-visual">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.png">
+          <img src="assets/hero.png" alt="Sweepbox status window with run results and the menu bar menu" width="1600" height="1234">
+        </picture>
+        <div class="receipt" aria-label="Example maintenance run">
+          <header><span>Run · today 08:02</span><span>#0007</span></header>
+          <div class="line" style="animation-delay:.6s"><span class="ok">✓</span>brew update</div>
+          <div class="line" style="animation-delay:.95s"><span class="ok">✓</span>brew upgrade<span class="freed">4 pkgs</span></div>
+          <div class="line" style="animation-delay:1.3s"><span class="ok">✓</span>brew cleanup<span class="freed">1.8 GB</span></div>
+          <div class="line" style="animation-delay:1.65s"><span class="ok">✓</span>npm update -g<span class="freed">3 pkgs</span></div>
+          <div class="line" style="animation-delay:2s"><span class="ok">✓</span>npm cache verify<span class="freed">212 MB</span></div>
+          <div class="total"><span>Space freed</span><b data-count-to="2.0" data-unit=" GB">0.0 GB</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="works">
+    <div class="wrap">
+      <span class="label">Keeps tidy</span>
+      <span class="chip">🍺 Homebrew <i>macOS</i></span>
+      <span class="chip">🍫 Chocolatey <i>Windows</i></span>
+      <span class="chip">📦 npm <i>both</i></span>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Features</span>
+        <h2>Set it once. Forget the <code style="font-size:.8em">brew upgrade</code> ritual.</h2>
+        <p>A small, quiet app that does the boring maintenance on time and keeps a record of what happened.</p>
+      </div>
+
+      <div class="bento">
+        <article class="card freed span-4 reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/><path d="M12 8v4l3 2"/></svg></div>
+          <h3>See the space you win back</h3>
+          <p>Every clean-up step measures the caches and old versions before and after: per manager, per run, and as a running total.</p>
+          <div class="big">4.1<small> GB freed this week</small></div>
+        </article>
+
+        <article class="card span-2 reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+          <h3>On a schedule</h3>
+          <p>Every few hours, daily or weekly. Missed a run while asleep? It catches up shortly after wake.</p>
+        </article>
+
+        <article class="card span-2 reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M7 13h10M7 17h6"/></svg></div>
+          <h3>Menu bar &amp; tray</h3>
+          <p>Status at a glance: idle, running, failed. Run now, run one manager, pause, or open the log.</p>
+        </article>
+
+        <article class="card span-2 reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v5c0 5 3.5 8 8 9 4.5-1 8-4 8-9V7z"/><path d="m9 12 2 2 4-4"/></svg></div>
+          <h3>Never hangs</h3>
+          <p>No hidden prompts: anything that wants a password fails fast and is reported, and every step has a timeout.</p>
+        </article>
+
+        <article class="card span-2 reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
+          <h3>Finds your tools</h3>
+          <p>Reads your shell's PATH, so Homebrew, nvm, fnm and Volta installs just work, even when started from Finder.</p>
+          <pre class="cmd">$ Sweepbox --dry-run</pre>
+        </article>
+
+        <article class="card span-3 reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/></svg></div>
+          <h3>You decide every step</h3>
+          <p>Greedy cask upgrades, full cache prune, Chocolatey exceptions, npm cache verify or clear: switch each step on or off.</p>
+        </article>
+
+        <article class="card span-3 reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L8 7H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><path d="M9 13.5 11 15.5 15 11.5"/></svg></div>
+          <h3>Free &amp; open source</h3>
+          <p>GPL-3.0 licensed, built with .NET and Avalonia. No accounts, no telemetry: it only runs your package managers.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" style="background: var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">How it works</span>
+        <h2>Three steps, then it's hands-off.</h2>
+      </div>
+      <div class="steps">
+        <div class="step reveal"><h3>Install</h3><p>Drag the app into Applications, or run the Windows installer. No admin rights needed.</p></div>
+        <div class="step reveal"><h3>Pick what runs</h3><p>Settings open on first start: choose the interval and which update and clean-up steps to run.</p></div>
+        <div class="step reveal"><h3>Let it sweep</h3><p>Sweepbox runs in the background, notifies you if something fails, and keeps a log of every run.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screens">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Looks native on both</span>
+        <h2>Only the managers your platform has.</h2>
+        <p>Homebrew and npm on macOS, Chocolatey and npm on Windows. Light and dark mode included.</p>
+      </div>
+      <div class="shots">
+        <figure class="reveal">
+          <div class="tall"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="images/settings-macos-dark.png">
+            <img src="images/settings-macos.png" alt="Sweepbox settings on macOS" loading="lazy">
+          </picture></div>
+          <figcaption>Settings on macOS</figcaption>
+        </figure>
+        <figure class="reveal">
+          <div class="tall"><picture>
+            <source media="(prefers-color-scheme: dark)" srcset="images/settings-windows-dark.png">
+            <img src="images/settings-windows.png" alt="Sweepbox settings on Windows" loading="lazy">
+          </picture></div>
+          <figcaption>Settings on Windows</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="download" style="background: var(--bg-2)">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Download</span>
+        <h2>Get <span data-release="label">the latest release</span>.</h2>
+        <p>Pick your platform. Downloads come straight from the <a href="https://github.com/{{REPO}}/releases/latest">latest GitHub release</a>.</p>
+      </div>
+
+      <div class="downloads">
+        <article class="label-card reveal" data-platform="mac">
+          <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 12.62c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.77-3.32-1.8-1.41-.14-2.76.83-3.47.83-.72 0-1.82-.81-3-.79-1.54.02-2.96.9-3.76 2.28-1.6 2.78-.41 6.9 1.15 9.16.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.78.74 2.99.72 1.24-.02 2.02-1.12 2.77-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.39-.92-2.4-3.69zM14.1 5.86c.63-.77 1.06-1.83.94-2.89-.91.04-2.01.61-2.66 1.37-.59.68-1.1 1.76-.96 2.8 1.01.08 2.05-.52 2.68-1.28z"/></svg>macOS</h3>
+          <p class="meta">macOS 12 or later · <span data-size="macos-arm64">disk image (.dmg)</span></p>
+          <div class="row">
+            <a class="btn btn-primary" data-asset="macos-arm64.dmg" href="https://github.com/{{REPO}}/releases/latest">Apple Silicon</a>
+            <a class="btn btn-ghost" data-asset="macos-x64.dmg" href="https://github.com/{{REPO}}/releases/latest">Intel</a>
+          </div>
+          <ul>
+            <li>Drag to Applications, then find it in the menu bar</li>
+            <li>Native icon on macOS 26</li>
+            <li>Not notarized yet: first launch via right-click → Open</li>
+          </ul>
+        </article>
+
+        <article class="label-card reveal" data-platform="win">
+          <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.1 10.4 4v7.1H3zm0 13.8 7.4 1.1v-7H3zM11.3 3.9 21 2.5v8.6h-9.7zm0 16.2 9.7 1.4v-8.6h-9.7z"/></svg>Windows</h3>
+          <p class="meta">Windows 10 / 11 · <span data-size="windows-x64">installer (.exe)</span></p>
+          <div class="row">
+            <a class="btn btn-primary" data-asset="windows-x64-setup.exe" href="https://github.com/{{REPO}}/releases/latest">x64</a>
+            <a class="btn btn-ghost" data-asset="windows-arm64-setup.exe" href="https://github.com/{{REPO}}/releases/latest">Arm64</a>
+          </div>
+          <ul>
+            <li>Per-user install, no admin rights needed</li>
+            <li>Optional start at sign-in</li>
+            <li>Chocolatey runs elevated via a UAC prompt</li>
+          </ul>
+        </article>
+      </div>
+      <p class="release-line" data-release="line">See all files and release notes on <a href="https://github.com/{{REPO}}/releases/latest">GitHub</a>.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>© 2026 Sweepbox contributors · <a href="license.html">GPL-3.0</a></span>
+    <nav>
+      <a href="docs.html">Manual</a>
+      <a href="license.html">License</a>
+      <a href="https://github.com/{{REPO}}/releases">Releases</a>
+      <a href="https://github.com/{{REPO}}/issues">Report an issue</a>
+      <a href="https://github.com/{{REPO}}">Source</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="assets/site.js" defer></script>
+</body>
+</html>

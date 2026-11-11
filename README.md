@@ -9,7 +9,7 @@ A small menu bar (macOS) / system tray (Windows) app that keeps your package man
   <img src="docs/images/status-macos.png" alt="Sweepbox status window" width="720">
 </picture>
 
-**[Read the manual](docs/MANUAL.md)**: installing, the menu, every setting, troubleshooting.
+**[Website](https://molsted.github.io/pkgcleaner/)** · **[Download the latest release](https://github.com/molsted/pkgcleaner/releases/latest)** · **[Manual](https://molsted.github.io/pkgcleaner/docs.html)** ([Markdown](docs/MANUAL.md))
 
 | Manager    | Platform      | What it does (each step can be switched off)                                                                  |
 |------------|---------------|---------------------------------------------------------------------------------------------------------------|
@@ -63,6 +63,8 @@ dotnet run --project src/Sweepbox.Desktop    # run the app
 dotnet test                                     # unit tests
 python3 tools/generate_icons.py                 # regenerate all icons/installer graphics
 dotnet run --project tools/Screenshots -- docs/images/raw && python3 tools/frame_screenshots.py   # manual screenshots
+python3 tools/generate_site_graphics.py         # website hero, social card, favicons
+pip install markdown==3.7 && python3 tools/build_site.py   # website -> _site/
 ```
 
 ```
@@ -73,6 +75,8 @@ tools/generate_icons.py   Draws the app icon, tray icons, DMG background and ins
 tools/Screenshots         Renders the real windows off-screen (Avalonia headless) for the manual
 tools/frame_screenshots.py  Adds window chrome to those renders and draws the menu illustrations
 docs/                     The manual and its images
+site/                     GitHub Pages website (landing page, layout for the docs and license pages)
+tools/build_site.py       Builds the website: renders docs/MANUAL.md and LICENSE into it
 installer/macos           Info.plist, entitlements, .icns + Icon Composer icon, DMG background
 installer/windows         Inno Setup script, .ico, wizard images
 scripts/                  package-macos.sh, make-dmg.sh, package-windows.ps1
@@ -103,6 +107,7 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE=mypr
 Set `$env:SIGN_CERT_THUMBPRINT` to Authenticode-sign the exe and the installer.
 
 **CI**: `.github/workflows/build.yml` runs the tests, builds both DMGs on `macos-latest` and both installers on `windows-latest`, and attaches everything to a GitHub release when you push a `v*` tag.
+`.github/workflows/pages.yml` deploys the website whenever the site or docs change and after every release. The download buttons read the latest release from the GitHub API, so they never need editing.
 
 The version is set in `Directory.Build.props`.
 

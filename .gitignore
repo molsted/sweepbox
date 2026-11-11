@@ -8,3 +8,6 @@ artifacts/
 
 # Raw renders from tools/Screenshots (framed copies live in docs/images)
 docs/images/raw/
+
+# GitHub Pages build output (tools/build_site.py)
+_site/
