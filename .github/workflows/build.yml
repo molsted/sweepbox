@@ -101,9 +101,9 @@ jobs:
           for spec in "macos arm64 dmg" "macos x64 dmg" "windows x64 exe" "windows arm64 exe"; do
             set -- $spec
             mkdir -p "appcast-$1-$2"
-            cp dist/*-$1-$2.$3 "appcast-$1-$2/"
+            cp dist/*-$1-$2*.$3 "appcast-$1-$2/"
             netsparkle-generate-appcast -a "appcast-$1-$2" -b "appcast-$1-$2" -e "$3" \
-              -f true -o "$1-$2" -u "$BASE" -n Sweepbox --file-version "$VERSION"
+              -o "$1-$2" -u "$BASE" -n Sweepbox --file-version "$VERSION"
             mv "appcast-$1-$2/appcast.xml" "dist/appcast-$1-$2.xml"
             mv "appcast-$1-$2/appcast.xml.signature" "dist/appcast-$1-$2.xml.signature"
           done
