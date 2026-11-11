@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using Avalonia.Controls;
-using NetSparkleUpdater.AppCast;
+using NetSparkleUpdater;
 using NetSparkleUpdater.Enums;
 using NetSparkleUpdater.Events;
 using NetSparkleUpdater.Interfaces;

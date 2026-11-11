@@ -1,5 +1,5 @@
 using Avalonia.Controls;
-using NetSparkleUpdater.AppCast;
+using NetSparkleUpdater;
 using NetSparkleUpdater.Interfaces;
 using NetSparkleUpdater.UI.Avalonia;
 using NetSparkleUpdater.UI.Avalonia.ViewModels;
