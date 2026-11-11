@@ -3,8 +3,22 @@ name: Build installers
 on:
   push:
     branches: [main]
+    # Website-only changes are built by pages.yml; skip the app build for them.
+    # (Path filters are not evaluated for tag pushes, so tags: ["v*"] below still triggers.)
+    paths-ignore:
+      - "site/**"
+      - "docs/**"
+      - "tools/build_site.py"
+      - "tools/generate_site_graphics.py"
+      - ".github/workflows/pages.yml"
     tags: ["v*"]
   pull_request:
+    paths-ignore:
+      - "site/**"
+      - "docs/**"
+      - "tools/build_site.py"
+      - "tools/generate_site_graphics.py"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 jobs:
