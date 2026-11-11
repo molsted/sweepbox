@@ -69,14 +69,14 @@ public sealed class AppUpdater
             return;
         }
         _sparkle ??= CreateSparkle();
-        _ = _sparkle.CheckForUpdatesAtUserRequest();
+        _ = _sparkle.CheckForUpdatesAtUserRequest(true); // a manual check ignores the skipped-version list
     }
 
     private SparkleUpdater CreateSparkle()
     {
         var sparkle = new SweepboxSparkleUpdater(AppCastUrl, new Ed25519Checker(SecurityMode.Strict, PublicKey), _quit)
         {
-            UIFactory = new NetSparkleUpdater.UI.Avalonia.UIFactory(_icon),
+            UIFactory = new SweepboxUIFactory(_icon),
             // The installers start the new version themselves; on macOS the DMG is opened for a drag-install.
             RelaunchAfterUpdate = false,
         };
