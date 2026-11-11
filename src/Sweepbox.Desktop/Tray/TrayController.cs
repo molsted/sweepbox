@@ -20,11 +20,12 @@ public sealed class TrayController : IDisposable
     private readonly NativeMenuItem _runOnly = new("Run Only");
     private readonly NativeMenuItem _cancel = new("Cancel Run");
     private readonly NativeMenuItem _pause = new("Pause Schedule") { ToggleType = NativeMenuItemToggleType.CheckBox };
+    private readonly NativeMenuItem _checkUpdates = new("Check for Updates…");
     private readonly DispatcherTimer _refreshTimer;
     private readonly Dictionary<string, WindowIcon> _icons = new();
     private string? _currentIconState;
 
-    public TrayController(Application app, AppServices services, Action showStatus, Action showSettings, Action quit)
+    public TrayController(Application app, AppServices services, Action showStatus, Action showSettings, Action checkUpdates, Action quit)
     {
         _services = services;
 
@@ -42,6 +43,8 @@ public sealed class TrayController : IDisposable
         }
         _runOnly.Menu = runOnlyMenu;
 
+        _checkUpdates.Click += (_, _) => checkUpdates();
+
         var status = new NativeMenuItem("Status and Log…");
         status.Click += (_, _) => showStatus();
         var settings = new NativeMenuItem("Settings…");
@@ -55,6 +58,7 @@ public sealed class TrayController : IDisposable
                      _header, _lastRun, _nextRun, _freed, new NativeMenuItemSeparator(),
                      _runNow, _runOnly, _cancel, new NativeMenuItemSeparator(),
                      _pause, status, settings, new NativeMenuItemSeparator(),
+                     _checkUpdates, new NativeMenuItemSeparator(),
                      quitItem,
                  })
             menu.Items.Add(item);

@@ -1,0 +1,48 @@
+name: Sparkle update keys
+
+# One-time bootstrap for the in-app updater (NetSparkle):
+# 1. Run this workflow once (Actions -> Sparkle update keys -> Run workflow).
+# 2. It generates an Ed25519 keypair with the official NetSparkle tool and commits
+#    the public key to installer/sparkle-public-key.txt.
+# 3. Copy the private key from this job's log (visible to admins only) into the
+#    SPARKLE_PRIVATE_KEY repository secret. The release workflow then signs appcasts
+#    with it; the private key never lives in the repository.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Refuse to overwrite an existing key
+        run: |
+          if [ -s installer/sparkle-public-key.txt ] && grep -qv '^#' installer/sparkle-public-key.txt; then
+            echo "::error::installer/sparkle-public-key.txt already holds a key. Keeping it; not generating a new one."
+            exit 1
+          fi
+      - name: Generate Ed25519 keypair with the NetSparkle tool
+        run: |
+          dotnet tool install --global NetSparkleUpdater.Tools.AppCastGenerator
+          netsparkle-generate-appcast --generate-keys --key-path keys
+          echo "### Sparkle keys generated" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Public key (committed to installer/sparkle-public-key.txt): \`${GITHUB_WORKSPACE}/keys/NetSparkle_Ed25519.pub\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Next: copy the private key below into the **SPARKLE_PRIVATE_KEY** repository secret (Settings -> Secrets and variables -> Actions)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Private key (admins only):"
+          cat keys/NetSparkle_Ed25519.priv
+      - name: Commit the public key
+        run: |
+          cp keys/NetSparkle_Ed25519.pub installer/sparkle-public-key.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add installer/sparkle-public-key.txt
+          git commit -m "Add the NetSparkle Ed25519 public key for update signatures"
+          git push

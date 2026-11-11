@@ -121,6 +121,7 @@
                 <Border Classes="card">
                     <StackPanel Spacing="4">
                         <CheckBox Content="Start Sweepbox when I log in" IsChecked="{Binding Settings.LaunchAtLogin}" />
+                        <CheckBox Content="Automatically check for app updates" IsChecked="{Binding Settings.SelfUpdate}" />
                         <CheckBox Content="Notify me when a run fails" IsChecked="{Binding Settings.NotifyOnFailure}" />
                         <CheckBox Content="Notify me when a run succeeds" IsChecked="{Binding Settings.NotifyOnSuccess}" />
                         <Grid ColumnDefinitions="Auto,140,*" Margin="0,8,0,0">
