@@ -63,7 +63,8 @@ public sealed class TrayController : IDisposable
                  })
             menu.Items.Add(item);
 
-        _tray = new TrayIcon { Menu = menu, IsVisible = true };
+        // The macOS native backend throws on a null ToolTipText when the icon is attached; Refresh() sets the real text.
+        _tray = new TrayIcon { Menu = menu, IsVisible = true, ToolTipText = "Sweepbox" };
         if (OperatingSystem.IsMacOS())
             MacOSProperties.SetIsTemplateIcon(_tray, true);
         else
