@@ -68,6 +68,7 @@ def build_docs(layout):
         tokens = tokens[0]["children"]
     write("docs.html", fill(layout, TITLE="Manual", KICKER="Documentation", INTRO=intro,
                             DESCRIPTION="The Sweepbox manual: install, menu, settings, space freed, command line, troubleshooting.",
+                            PAGE_URL=f"{BASE_URL}docs.html",
                             TOC=toc_html(tokens), CONTENT=body, NAV_DOCS=' aria-current="page"'))
 
 
@@ -95,6 +96,7 @@ def build_license(layout):
     toc = '<ul><li><a href="#full-text">Full license text</a></li></ul>'
     write("license.html", fill(layout, TITLE="License", KICKER="GPL-3.0", INTRO="Sweepbox is free and open source software.",
                                DESCRIPTION="Sweepbox is licensed under the GNU General Public License v3.0.",
+                               PAGE_URL=f"{BASE_URL}license.html",
                                TOC=toc, CONTENT=summary, NAV_LICENSE=' aria-current="page"'))
 
 
@@ -117,6 +119,13 @@ def main():
 
     build_docs(layout)
     build_license(layout)
+
+    write("robots.txt", "User-agent: *\nAllow: /\n\nSitemap: " + BASE_URL + "sitemap.xml\n")
+    pages = ["", "docs.html", "license.html"]
+    write("sitemap.xml", '<?xml version="1.0" encoding="UTF-8"?>\n'
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+           + "".join(f"<url><loc>{BASE_URL}{page.lstrip('/')}</loc></url>\n" for page in pages)
+           + "</urlset>\n")
     open(os.path.join(OUT, ".nojekyll"), "w").close()
     print(f"Site built in {OUT} for {BASE_URL}")
 
