@@ -67,6 +67,16 @@ python3 tools/generate_site_graphics.py         # website hero, social card, fav
 pip install markdown==3.7 && python3 tools/build_site.py   # website -> _site/
 ```
 
+To remove all build output (`bin/`, `obj/`, `artifacts/`, `_site/`, screenshot renders, caches), run the clean script. It lists what it will remove and asks first; on macOS you can also double-click `scripts/clean.command` in Finder. `--dry-run` / `-DryRun` only lists, `--yes` / `-Yes` skips the question.
+
+```bash
+scripts/clean.command
+```
+
+```powershell
+./scripts/clean.ps1
+```
+
 ```
 src/Sweepbox.Core       Settings, package managers, command runner, engine, scheduler (no UI)
 src/Sweepbox.Desktop    Avalonia UI: tray/menu bar, settings + status windows, CLI entry point
@@ -79,7 +89,7 @@ site/                     GitHub Pages website (landing page, layout for the doc
 tools/build_site.py       Builds the website: renders docs/MANUAL.md and LICENSE into it
 installer/macos           Info.plist, entitlements, .icns + Icon Composer icon, DMG background
 installer/windows         Inno Setup script, .ico, wizard images
-scripts/                  package-macos.sh, make-dmg.sh, package-windows.ps1
+scripts/                  package-macos.sh, make-dmg.sh, package-windows.ps1, clean.command / clean.ps1
 ```
 
 ### Building installers

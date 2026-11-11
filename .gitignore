@@ -11,3 +11,7 @@ docs/images/raw/
 
 # GitHub Pages build output (tools/build_site.py)
 _site/
+
+# Python bytecode (tools/*.py)
+__pycache__/
+TestResults/
