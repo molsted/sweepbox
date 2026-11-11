@@ -53,7 +53,9 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: macos-dmg
-          path: artifacts/*.dmg
+          path: |
+            artifacts/*.dmg
+            artifacts/*.zip
 
   windows:
     needs: test
