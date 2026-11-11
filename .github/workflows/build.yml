@@ -1,5 +1,9 @@
 name: Build installers
 
+# Least privilege by default; the release job widens to contents: write.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -107,7 +111,8 @@ jobs:
             mv "appcast-$1-$2/appcast.xml" "dist/appcast-$1-$2.xml"
             mv "appcast-$1-$2/appcast.xml.signature" "dist/appcast-$1-$2.xml.signature"
           done
-      - uses: softprops/action-gh-release@v3
+      # Third-party action, pinned to the commit behind the v3 tag.
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
         with:
           name: Sweepbox ${{ github.ref_name }}
           body: |
