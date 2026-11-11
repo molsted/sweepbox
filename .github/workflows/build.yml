@@ -11,8 +11,8 @@ jobs:
   test:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet test Sweepbox.slnx -c Release
@@ -21,8 +21,8 @@ jobs:
     needs: test
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - name: Select newest Xcode (26+ compiles the macOS 26 app icon)
@@ -32,7 +32,7 @@ jobs:
           xcodebuild -version
       - name: Build app bundles and DMGs
         run: scripts/package-macos.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-dmg
           path: artifacts/*.dmg
@@ -41,8 +41,8 @@ jobs:
     needs: test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - name: Ensure Inno Setup
@@ -52,7 +52,7 @@ jobs:
       - name: Build installers
         shell: pwsh
         run: ./scripts/package-windows.ps1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-setup
           path: artifacts/*-setup.exe
@@ -64,10 +64,23 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
+          name: Sweepbox ${{ github.ref_name }}
+          body: |
+            Sweepbox keeps Homebrew / Chocolatey and npm up to date and tidy on a schedule, from the menu bar (macOS) or system tray (Windows), and shows how much disk space the clean-up freed.
+
+            | Download | For |
+            |---|---|
+            | `Sweepbox-*-macos-arm64.dmg` | Mac with Apple Silicon |
+            | `Sweepbox-*-macos-x64.dmg` | Mac with Intel |
+            | `Sweepbox-*-windows-x64-setup.exe` | Windows 10/11 (x64) |
+            | `Sweepbox-*-windows-arm64-setup.exe` | Windows 11 on Arm |
+
+            The macOS build is not notarized: on first launch right-click the app in Applications and choose **Open**. See the [manual](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/docs/MANUAL.md) for details.
+          generate_release_notes: true
           files: dist/*
