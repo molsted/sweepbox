@@ -97,8 +97,8 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
-            echo "::warning::SPARKLE_PRIVATE_KEY is not set; run the 'Sparkle update keys' workflow first. The release ships without an appcast."
-            exit 0
+            echo "::error::SPARKLE_PRIVATE_KEY is not set. Without it the appcast is not signed, so no existing install updates to this release. Add the repository secret (Settings -> Secrets and variables -> Actions), delete and re-push the tag."
+            exit 1
           fi
           dotnet tool install --global NetSparkleUpdater.Tools.AppCastGenerator
           VERSION="${GITHUB_REF_NAME#v}"
