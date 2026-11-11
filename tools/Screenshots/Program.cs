@@ -66,7 +66,7 @@ void Shot(Window window, string name, bool fullHeight = false, int selectTab = -
     var size = window.Bounds.Size;
     using var bitmap = new RenderTargetBitmap(new PixelSize((int)(size.Width * 2), (int)(size.Height * 2)), new Vector(192, 192));
     bitmap.Render(window);
-    bitmap.Save(Path.Combine(outDir, name + ".png"));
+    bitmap.Save(Path.Combine(outDir, name + ".png"), PngBitmapEncoderOptions.Default);
     window.Close();
 }
 
