@@ -84,6 +84,7 @@ The top of the menu is a status summary:
 | **Pause Schedule** | Temporarily stops scheduled runs (until you un-pause or restart Sweepbox) |
 | **Status and Log…** | Opens the [status window](#the-status-window) |
 | **Settings…** | Opens [Settings](#settings) |
+| **Check for Updates…** | Looks for a newer release right away (see [Keeping Sweepbox up to date](#keeping-sweepbox-up-to-date)) |
 | **Quit Sweepbox** | Quits; a running run is cancelled |
 
 The icon shows the state at a glance:
@@ -161,9 +162,22 @@ To keep a formula at its current version, pin it in Terminal: `brew pin <name>`.
 ### General
 
 - **Start Sweepbox when I log in**: adds a login item (macOS LaunchAgent / Windows *Run* entry).
+- **Automatically check for app updates**: when on, Sweepbox looks for a newer release once a day and shows the update window when it finds one. Turn it off and nothing is checked or downloaded in the background.
 - **Notify me when a run fails / succeeds**: system notifications with a summary, including space freed.
 - **Step timeout**: a command running longer than this is stopped and reported as failed.
 - **Extra PATH directories**: only needed if Sweepbox reports a tool as *not found* although it is installed (see [Troubleshooting](#troubleshooting)).
+
+---
+
+## Keeping Sweepbox up to date
+
+Sweepbox updates itself from this repository's releases; every download is verified with an Ed25519 signature before it is offered.
+
+- **Automatically**: with *Automatically check for app updates* on (the default), Sweepbox checks once a day. When a new release is found, an update window shows the release notes with buttons to skip the version, remind later, or install.
+- **On demand**: choose **Check for Updates…** in the menu bar / tray menu at any time — including with automatic checks off. It reports whether you are up to date, shows the update window, or says so if the check could not reach GitHub.
+- **Installing**: on Windows the new installer runs after Sweepbox closes and relaunches the app. On macOS the downloaded disk image opens; drag Sweepbox to *Applications* to replace the old version.
+
+You can always see and download the latest release manually on the [releases page](https://github.com/molsted/sweepbox/releases).
 
 ---
 

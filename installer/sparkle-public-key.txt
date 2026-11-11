@@ -1,0 +1,5 @@
+# NetSparkle Ed25519 public key for update signatures.
+# The private key never leaves CI; it lives in the SPARKLE_PRIVATE_KEY secret.
+# This placeholder is replaced by running the "Sparkle update keys" workflow
+# (Actions tab -> Sparkle update keys -> Run workflow).
+placeholder-run-the-sparkle-keys-workflow

@@ -6,5 +6,7 @@
     <Copyright>Copyright © 2026 Sweepbox contributors. Licensed under GPL-3.0.</Copyright>
     <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
     <LangVersion>latest</LangVersion>
+    <!-- NetSparkle compares the informational version with the appcast; keep the commit hash out of it. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 </Project>

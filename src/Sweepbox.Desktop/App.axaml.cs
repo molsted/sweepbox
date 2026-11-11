@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform;
 using Sweepbox.Core.Settings;
 using Sweepbox.Desktop.Services;
 using Sweepbox.Desktop.Tray;
@@ -18,6 +19,7 @@ public partial class App : Application
     private TrayController? _tray;
     private StatusWindow? _statusWindow;
     private SettingsWindow? _settingsWindow;
+    private AppUpdater? _updater;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -26,8 +28,12 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _services = new AppServices(Paths);
-            _tray = new TrayController(this, _services, ShowStatus, ShowSettings, () => Quit(desktop));
+            var quit = () => Quit(desktop);
+            _updater = new AppUpdater(_services.Settings, LoadAppIcon(), quit);
+            _tray = new TrayController(this, _services, ShowStatus, ShowSettings, _updater.CheckAtUserRequest, quit);
+            _services.Settings.Changed += _ => _updater.UpdateAutomatic();
             _services.Start();
+            _updater.UpdateAutomatic();
             desktop.Exit += (_, _) => _services.Dispose();
 
             // First launch: ask about starting at login, then open settings so the user sees what will run.
@@ -85,6 +91,9 @@ public partial class App : Application
         }
         BringToFront(_settingsWindow);
     }
+
+    private static WindowIcon LoadAppIcon()
+        => new(AssetLoader.Open(new Uri("avares://Sweepbox/Assets/app-icon.png")));
 
     /// <summary>True for an installed app (.app bundle / installer), false for a dev build in bin/.</summary>
     private static bool IsInstalledCopy()

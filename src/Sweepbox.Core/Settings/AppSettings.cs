@@ -20,6 +20,9 @@ public sealed class AppSettings
 
     public bool LaunchAtLogin { get; set; }
 
+    /// <summary>When true, the app checks GitHub for a newer release now and then. Manual checks always work.</summary>
+    public bool SelfUpdate { get; set; } = true;
+
     public bool NotifyOnFailure { get; set; } = true;
 
     public bool NotifyOnSuccess { get; set; }
