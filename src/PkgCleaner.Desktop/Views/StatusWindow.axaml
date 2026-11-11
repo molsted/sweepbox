@@ -1,0 +1,107 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PkgCleaner.Desktop.ViewModels"
+        x:Class="PkgCleaner.Desktop.Views.StatusWindow"
+        x:DataType="vm:StatusViewModel"
+        Title="PkgCleaner"
+        Icon="/Assets/app-icon.png"
+        Width="760" Height="640" MinWidth="560" MinHeight="420"
+        WindowStartupLocation="CenterScreen">
+
+    <DockPanel>
+        <Border Classes="header" DockPanel.Dock="Top">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Content="Settings…" Command="{Binding OpenSettingsCommand}" />
+                    <Button Content="Cancel" Command="{Binding CancelRunCommand}" IsVisible="{Binding IsRunning}" />
+                    <Button Content="Run Now" Command="{Binding RunNowCommand}" IsVisible="{Binding !IsRunning}"
+                            Background="White" Foreground="{StaticResource BrandOrangeBrush}" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Image Source="/Assets/app-icon.png" Width="44" Height="44" />
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Classes="h1" Text="{Binding Headline}" />
+                            <ProgressBar IsIndeterminate="True" Width="60" VerticalAlignment="Center" IsVisible="{Binding IsRunning}"
+                                         Foreground="White" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Detail}" Opacity="0.9" />
+                        <TextBlock Text="{Binding NextRun}" Opacity="0.8" FontSize="12" />
+                    </StackPanel>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="16,8" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Classes="muted" Text="{Binding Version}" VerticalAlignment="Center" />
+                <Button Content="Open log folder" Command="{Binding OpenLogsCommand}" />
+            </DockPanel>
+        </Border>
+
+        <TabControl Margin="12,6,12,0">
+            <TabItem Header="Overview">
+                <ScrollViewer>
+                    <StackPanel Spacing="8" Margin="0,8">
+                        <TextBlock Classes="muted" Text="Results of the last run" />
+                        <ItemsControl ItemsSource="{Binding Managers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ManagerRow">
+                                    <Border Classes="card" Margin="0,0,0,8">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" CornerRadius="10" Padding="10,2" VerticalAlignment="Top"
+                                                    Classes.ok="{Binding IsOk}" Classes.failed="{Binding IsFailed}">
+                                                <Border.Styles>
+                                                    <Style Selector="Border">
+                                                        <Setter Property="Background" Value="#33888888" />
+                                                    </Style>
+                                                    <Style Selector="Border.ok">
+                                                        <Setter Property="Background" Value="{StaticResource SuccessBrush}" />
+                                                    </Style>
+                                                    <Style Selector="Border.failed">
+                                                        <Setter Property="Background" Value="{StaticResource FailureBrush}" />
+                                                    </Style>
+                                                </Border.Styles>
+                                                <TextBlock Text="{Binding Outcome}" FontSize="12" FontWeight="SemiBold" Foreground="White" />
+                                            </Border>
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" />
+                                                <TextBlock Classes="muted" Text="{Binding Detail}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Classes="h2" Text="History" />
+                        <ItemsControl ItemsSource="{Binding History}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:HistoryRow">
+                                    <Grid ColumnDefinitions="150,90,*,70,Auto" Margin="0,2">
+                                        <TextBlock Text="{Binding When}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Trigger}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Outcome}" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource FailureBrush}" IsVisible="{Binding IsFailed}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Outcome}" VerticalAlignment="Center" IsVisible="{Binding !IsFailed}" />
+                                        <TextBlock Grid.Column="3" Classes="muted" Text="{Binding Duration}" VerticalAlignment="Center" />
+                                        <Button Grid.Column="4" Content="Log" Padding="8,2" FontSize="12"
+                                                Command="{Binding $parent[Window].((vm:StatusViewModel)DataContext).OpenLogCommand}"
+                                                CommandParameter="{Binding LogFile}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Live log">
+                <TextBox x:Name="LogBox" Text="{Binding LogText}" IsReadOnly="True" AcceptsReturn="True"
+                         FontFamily="Menlo, Consolas, monospace" FontSize="12" TextWrapping="NoWrap"
+                         Margin="0,8,0,8" />
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

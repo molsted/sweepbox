@@ -1,0 +1,138 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PkgCleaner.Desktop.ViewModels"
+        x:Class="PkgCleaner.Desktop.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="PkgCleaner Settings"
+        Icon="/Assets/app-icon.png"
+        Width="560" Height="720" MinWidth="460" MinHeight="420"
+        WindowStartupLocation="CenterScreen">
+
+    <DockPanel>
+        <Border Classes="header" DockPanel.Dock="Top">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Image Source="/Assets/app-icon.png" Width="40" Height="40" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Classes="h1" Text="Settings" />
+                    <TextBlock Text="Keep Homebrew, Chocolatey and npm fresh and tidy." Opacity="0.9" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="20,12"
+                BorderThickness="0,1,0,0" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <DockPanel>
+                <Button DockPanel.Dock="Left" Content="Open settings folder" Command="{Binding OpenSettingsFolderCommand}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Content="Cancel" Command="{Binding CancelCommand}" IsCancel="True" />
+                    <Button Content="Save" Classes="accent" Command="{Binding SaveCommand}" IsDefault="True" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer>
+            <StackPanel Margin="20,6,20,20" Spacing="6">
+
+                <!-- Schedule -->
+                <TextBlock Classes="h2" Text="Schedule" />
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <ToggleSwitch IsChecked="{Binding Settings.ScheduleEnabled}"
+                                      OnContent="Run automatically" OffContent="Only run when I click Run Now" />
+                        <Grid ColumnDefinitions="Auto,140,*" RowDefinitions="Auto,Auto,Auto" IsEnabled="{Binding Settings.ScheduleEnabled}">
+                            <TextBlock Text="Every" VerticalAlignment="Center" Margin="0,0,12,0" />
+                            <NumericUpDown Grid.Column="1" Minimum="1" Maximum="720" Increment="1" FormatString="0"
+                                           Value="{Binding IntervalHours}" />
+                            <TextBlock Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center"
+                                       Text="{Binding IntervalDescription, StringFormat='hours  ·  {0}'}" />
+
+                            <TextBlock Grid.Row="1" Text="Start delay" VerticalAlignment="Center" Margin="0,8,12,0" />
+                            <NumericUpDown Grid.Row="1" Grid.Column="1" Margin="0,8,0,0" Minimum="0" Maximum="120" FormatString="0"
+                                           Value="{Binding StartupDelayMinutes}" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Margin="10,8,0,0" VerticalAlignment="Center" Classes="muted"
+                                       Text="minutes after login before an overdue run starts" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Homebrew -->
+                <StackPanel IsVisible="{Binding ShowBrew}" Spacing="6">
+                    <TextBlock Classes="h2" Text="Homebrew" />
+                    <Border Classes="card">
+                        <StackPanel Spacing="4">
+                            <ToggleSwitch IsChecked="{Binding Settings.Brew.Enabled}" OnContent="Enabled" OffContent="Disabled" />
+                            <StackPanel IsEnabled="{Binding Settings.Brew.Enabled}" Spacing="2" Margin="0,4,0,0">
+                                <CheckBox Content="Update Homebrew and package lists (brew update)" IsChecked="{Binding Settings.Brew.Update}" />
+                                <CheckBox Content="Upgrade formulae (brew upgrade --formula)" IsChecked="{Binding Settings.Brew.UpgradeFormulae}" />
+                                <CheckBox Content="Upgrade casks / apps (brew upgrade --cask)" IsChecked="{Binding Settings.Brew.UpgradeCasks}" />
+                                <CheckBox Content="Include self-updating apps (--greedy)" Margin="28,0,0,0"
+                                          IsEnabled="{Binding Settings.Brew.UpgradeCasks}" IsChecked="{Binding Settings.Brew.Greedy}" />
+                                <CheckBox Content="Remove unused dependencies (brew autoremove)" IsChecked="{Binding Settings.Brew.Autoremove}" />
+                                <CheckBox Content="Remove old versions and downloads (brew cleanup)" IsChecked="{Binding Settings.Brew.Cleanup}" />
+                                <CheckBox Content="Clear the entire download cache (--prune=all)" Margin="28,0,0,0"
+                                          IsEnabled="{Binding Settings.Brew.Cleanup}" IsChecked="{Binding Settings.Brew.PruneAll}" />
+                                <TextBlock Classes="muted" Margin="0,6,0,0"
+                                           Text="Tip: to keep a formula at its current version, run 'brew pin &lt;name&gt;' in Terminal. Casks that need an administrator password are reported as failed." />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Chocolatey -->
+                <StackPanel IsVisible="{Binding ShowChoco}" Spacing="6">
+                    <TextBlock Classes="h2" Text="Chocolatey" />
+                    <Border Classes="card">
+                        <StackPanel Spacing="4">
+                            <ToggleSwitch IsChecked="{Binding Settings.Choco.Enabled}" OnContent="Enabled" OffContent="Disabled" />
+                            <StackPanel IsEnabled="{Binding Settings.Choco.Enabled}" Spacing="2" Margin="0,4,0,0">
+                                <CheckBox Content="Upgrade all packages (choco upgrade all)" IsChecked="{Binding Settings.Choco.UpgradeAll}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,2,0,4" IsEnabled="{Binding Settings.Choco.UpgradeAll}">
+                                    <TextBlock Text="Except" VerticalAlignment="Center" />
+                                    <TextBox Width="300" Watermark="e.g. googlechrome, vscode" Text="{Binding Settings.Choco.Except}" />
+                                </StackPanel>
+                                <CheckBox Content="Remove download cache (choco cache remove)" IsChecked="{Binding Settings.Choco.CacheRemove}" />
+                                <CheckBox Content="Ask for administrator rights (UAC) when needed" IsChecked="{Binding Settings.Choco.ElevateWithUac}" />
+                                <TextBlock Classes="muted" Margin="0,6,0,0"
+                                           Text="Chocolatey needs administrator rights. Without the UAC prompt, PkgCleaner must itself be started as administrator." />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- npm -->
+                <StackPanel IsVisible="{Binding ShowNpm}" Spacing="6">
+                    <TextBlock Classes="h2" Text="npm" />
+                    <Border Classes="card">
+                        <StackPanel Spacing="4">
+                            <ToggleSwitch IsChecked="{Binding Settings.Npm.Enabled}" OnContent="Enabled" OffContent="Disabled" />
+                            <StackPanel IsEnabled="{Binding Settings.Npm.Enabled}" Spacing="6" Margin="0,4,0,0">
+                                <CheckBox Content="Update globally installed packages (npm update -g)" IsChecked="{Binding Settings.Npm.UpdateGlobals}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Cache" VerticalAlignment="Center" />
+                                    <ComboBox Width="330" ItemsSource="{Binding NpmCacheModes}" SelectedIndex="{Binding NpmCacheModeIndex}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- General -->
+                <TextBlock Classes="h2" Text="General" />
+                <Border Classes="card">
+                    <StackPanel Spacing="4">
+                        <CheckBox Content="Start PkgCleaner when I log in" IsChecked="{Binding Settings.LaunchAtLogin}" />
+                        <CheckBox Content="Notify me when a run fails" IsChecked="{Binding Settings.NotifyOnFailure}" />
+                        <CheckBox Content="Notify me when a run succeeds" IsChecked="{Binding Settings.NotifyOnSuccess}" />
+                        <Grid ColumnDefinitions="Auto,140,*" Margin="0,8,0,0">
+                            <TextBlock Text="Step timeout" VerticalAlignment="Center" Margin="0,0,12,0" />
+                            <NumericUpDown Grid.Column="1" Minimum="1" Maximum="240" FormatString="0" Value="{Binding StepTimeoutMinutes}" />
+                            <TextBlock Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center" Classes="muted" Text="minutes per command" />
+                        </Grid>
+                        <TextBlock Text="Extra PATH directories" Margin="0,8,0,2" />
+                        <TextBox Text="{Binding Settings.ExtraPath}" Watermark="Only needed if a tool isn't found automatically" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

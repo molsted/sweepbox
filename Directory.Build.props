@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <Product>PkgCleaner</Product>
+    <Company>PkgCleaner</Company>
+    <Copyright>Copyright © 2026</Copyright>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>
