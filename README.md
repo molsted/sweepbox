@@ -9,7 +9,7 @@ A small menu bar (macOS) / system tray (Windows) app that keeps your package man
   <img src="docs/images/status-macos.png" alt="Sweepbox status window" width="720">
 </picture>
 
-**[Website](https://molsted.github.io/pkgcleaner/)** · **[Download the latest release](https://github.com/molsted/pkgcleaner/releases/latest)** · **[Manual](https://molsted.github.io/pkgcleaner/docs.html)** ([Markdown](docs/MANUAL.md))
+**[Website](https://molsted.github.io/sweepbox/)** · **[Download the latest release](https://github.com/molsted/sweepbox/releases/latest)** · **[Manual](https://molsted.github.io/sweepbox/docs.html)** ([Markdown](docs/MANUAL.md))
 
 | Manager    | Platform      | What it does (each step can be switched off)                                                                  |
 |------------|---------------|---------------------------------------------------------------------------------------------------------------|

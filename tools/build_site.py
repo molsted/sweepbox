@@ -2,7 +2,7 @@
 """Builds the GitHub Pages site into _site/.
 
   pip install markdown==3.7
-  python3 tools/build_site.py            # repo/base URL from $GITHUB_REPOSITORY, default molsted/pkgcleaner
+  python3 tools/build_site.py            # repo/base URL from $GITHUB_REPOSITORY, default molsted/sweepbox
 
 - site/index.html and site/assets/* are copied as-is (placeholders filled in)
 - docs.html is rendered from docs/MANUAL.md (single source of truth for the manual)
@@ -19,7 +19,7 @@ import markdown
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "site")
 OUT = os.path.join(ROOT, "_site")
-REPO = os.environ.get("GITHUB_REPOSITORY", "molsted/pkgcleaner")
+REPO = os.environ.get("GITHUB_REPOSITORY", "molsted/sweepbox")
 OWNER, NAME = REPO.split("/")
 BASE_URL = os.environ.get("SITE_BASE_URL", f"https://{OWNER.lower()}.github.io/{NAME}/")
 
