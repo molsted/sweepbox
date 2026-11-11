@@ -15,6 +15,9 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <InvariantGlobalization>true</InvariantGlobalization>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- NetSparkle's dialog windows in Updates/ are constructed by SweepboxUIFactory, never via the runtime XAML loader;
+         they intentionally have no parameterless constructor, so AVLN3001 does not apply. -->
+    <NoWarn>$(NoWarn);AVLN3001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -36,7 +36,7 @@ hdiutil attach -readwrite -noverify -noautoopen -nobrowse -mountpoint "$MOUNT" "
 
 apply_layout() {
   # perl alarm = portable timeout, so a pending automation prompt can never hang the build.
-  perl -e 'alarm 90; exec @ARGV' osascript - "$MOUNT" <<'EOF'
+  perl -e 'alarm 90; exec @ARGV' osascript - "$MOUNT" 2>"$STAGE/layout.err" >/dev/null <<'EOF'
 on run argv
   set mountPath to item 1 of argv
   tell application "Finder"
@@ -63,10 +63,16 @@ end run
 EOF
 }
 
-if apply_layout >/dev/null 2>&1 || { sleep 3; apply_layout >/dev/null 2>&1; }; then
-  echo "    dmg: Finder layout applied"
+if apply_layout || { sleep 3; apply_layout; }; then
+  # osascript can "succeed" while Finder failed to record the layout, so verify the
+  # written .DS_Store actually references the background before trusting it.
+  if [[ -f "$MOUNT/.DS_Store" ]] && grep -aq "background.tiff" "$MOUNT/.DS_Store"; then
+    echo "    dmg: Finder layout applied"
+  else
+    echo "    dmg: WARNING - Finder did not record the layout; DMG will show the default window"
+  fi
 else
-  echo "    dmg: WARNING - Finder layout could not be applied (automation denied?); DMG has default layout"
+  echo "    dmg: WARNING - Finder layout could not be applied: $(tr '\n' ' ' < "$STAGE/layout.err" | cut -c1-400)"
 fi
 
 # Volume icon: added after the layout step, because Finder removes it while applying the layout.

@@ -97,6 +97,8 @@ public sealed class AppUpdater
             using var reader = new StreamReader(stream);
             var key = reader.ReadToEnd().Split('\n').Select(l => l.Trim())
                 .FirstOrDefault(l => l.Length > 0 && !l.StartsWith('#'));
+            if (key is null)
+                return null;
             try
             {
                 return Convert.FromBase64String(key).Length == 32 ? key : null;

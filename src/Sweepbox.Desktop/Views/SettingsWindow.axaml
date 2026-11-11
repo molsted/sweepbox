@@ -88,7 +88,7 @@
                                 <CheckBox Content="Upgrade all packages (choco upgrade all)" IsChecked="{Binding Settings.Choco.UpgradeAll}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,2,0,4" IsEnabled="{Binding Settings.Choco.UpgradeAll}">
                                     <TextBlock Text="Except" VerticalAlignment="Center" />
-                                    <TextBox Width="300" Watermark="e.g. googlechrome, vscode" Text="{Binding Settings.Choco.Except}" />
+                                    <TextBox Width="300" PlaceholderText="e.g. googlechrome, vscode" Text="{Binding Settings.Choco.Except}" />
                                 </StackPanel>
                                 <CheckBox Content="Remove download cache (choco cache remove)" IsChecked="{Binding Settings.Choco.CacheRemove}" />
                                 <CheckBox Content="Ask for administrator rights (UAC) when needed" IsChecked="{Binding Settings.Choco.ElevateWithUac}" />
@@ -130,7 +130,7 @@
                             <TextBlock Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center" Classes="muted" Text="minutes per command" />
                         </Grid>
                         <TextBlock Text="Extra PATH directories" Margin="0,8,0,2" />
-                        <TextBox Text="{Binding Settings.ExtraPath}" Watermark="Only needed if a tool isn't found automatically" />
+                        <TextBox Text="{Binding Settings.ExtraPath}" PlaceholderText="Only needed if a tool isn't found automatically" />
                     </StackPanel>
                 </Border>
             </StackPanel>
