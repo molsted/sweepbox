@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet test PkgCleaner.slnx -c Release
+      - run: dotnet test Sweepbox.slnx -c Release
 
   macos:
     needs: test
@@ -25,6 +25,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Select newest Xcode (26+ compiles the macOS 26 app icon)
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          [ -n "$XCODE" ] && sudo xcode-select -s "$XCODE"
+          xcodebuild -version
       - name: Build app bundles and DMGs
         run: scripts/package-macos.sh
       - uses: actions/upload-artifact@v4

@@ -1,9 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/PkgCleaner.Core/PkgCleaner.Core.csproj" />
-    <Project Path="src/PkgCleaner.Desktop/PkgCleaner.Desktop.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/PkgCleaner.Tests/PkgCleaner.Tests.csproj" />
-  </Folder>
-</Solution>

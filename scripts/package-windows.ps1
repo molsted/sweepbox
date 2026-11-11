@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Publishes PkgCleaner for Windows and builds the Inno Setup installer.
+  Publishes Sweepbox for Windows and builds the Inno Setup installer.
 .EXAMPLE
   ./scripts/package-windows.ps1               # x64 and arm64
   ./scripts/package-windows.ps1 -Arch x64
@@ -14,7 +14,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Root = Resolve-Path "$PSScriptRoot\.."
-$Project = "$Root\src\PkgCleaner.Desktop\PkgCleaner.Desktop.csproj"
+$Project = "$Root\src\Sweepbox.Desktop\Sweepbox.Desktop.csproj"
 $Out = "$Root\artifacts"
 $Version = ([xml](Get-Content "$Root\Directory.Build.props")).Project.PropertyGroup.Version
 
@@ -40,12 +40,12 @@ foreach ($a in $Arch) {
     Remove-Item -Recurse -Force $Publish -ErrorAction SilentlyContinue
     dotnet publish $Project -c Release -r "win-$a" --self-contained -p:DebugType=none -o $Publish -nologo -v quiet
     if ($LASTEXITCODE) { throw "dotnet publish failed" }
-    Sign "$Publish\PkgCleaner.exe"
+    Sign "$Publish\Sweepbox.exe"
 
     Write-Host "==> Building installer ($a)"
-    & $Iscc /Q "/DAppVersion=$Version" "/DArch=$a" "/DSourceDir=$Publish" "/DOutputDir=$Out" "$Root\installer\windows\PkgCleaner.iss"
+    & $Iscc /Q "/DAppVersion=$Version" "/DArch=$a" "/DSourceDir=$Publish" "/DOutputDir=$Out" "$Root\installer\windows\Sweepbox.iss"
     if ($LASTEXITCODE) { throw "ISCC failed" }
-    $Setup = "$Out\PkgCleaner-$Version-windows-$a-setup.exe"
+    $Setup = "$Out\Sweepbox-$Version-windows-$a-setup.exe"
     Sign $Setup
     Write-Host "==> $Setup"
 }

@@ -1,9 +1,10 @@
 <Project>
   <PropertyGroup>
     <Version>1.0.0</Version>
-    <Product>PkgCleaner</Product>
-    <Company>PkgCleaner</Company>
-    <Copyright>Copyright © 2026</Copyright>
+    <Product>Sweepbox</Product>
+    <Company>Sweepbox</Company>
+    <Copyright>Copyright © 2026 Sweepbox contributors. Licensed under GPL-3.0.</Copyright>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 </Project>

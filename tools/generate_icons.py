@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Generates all PkgCleaner graphics from simple vector shapes.
+"""Generates all Sweepbox graphics from simple vector shapes.
 
-Outputs (in src/PkgCleaner.Desktop/Assets and installer/):
+Outputs (in src/Sweepbox.Desktop/Assets and installer/):
   app-icon.png              256px window icon
   tray-mac-{state}.png      macOS menu bar template icons (black + alpha), 44px (@2x of 22pt)
   tray-win-{state}.png      Windows tray icons (colour), 64px
   installer/macos/AppIcon.icns  macOS app icon (via iconutil)
   installer/windows/AppIcon.ico Windows app/installer icon
-  installer/macos/dmg-background.png  DMG window background
+  installer/macos/dmg-background{,@2x}.png  DMG window background (1x/2x)
+  installer/macos/AppIcon.icon  Icon Composer source for macOS 26 (compiled by actool)
 
 Requires Pillow. Run: python3 tools/generate_icons.py
 """
@@ -17,10 +18,10 @@ import subprocess
 import sys
 import tempfile
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ASSETS = os.path.join(ROOT, "src", "PkgCleaner.Desktop", "Assets")
+ASSETS = os.path.join(ROOT, "src", "Sweepbox.Desktop", "Assets")
 BUILD = os.path.join(ROOT, "installer")
 SS = 4  # supersampling factor
 
@@ -182,18 +183,148 @@ def tray_win(state, size=64):
 
 # ---------------------------------------------------------------- DMG background
 
-def dmg_background(width=660, height=400):
-    s = 2  # retina
-    img = Image.new("RGBA", (width * s, height * s), (246, 247, 251, 255))
+def _font(size, bold=False):
+    for path, index in (("/System/Library/Fonts/SFNS.ttf", 0), ("/System/Library/Fonts/Helvetica.ttc", 1 if bold else 0)):
+        if os.path.exists(path):
+            f = ImageFont.truetype(path, size, index=index)
+            if bold and path.endswith("SFNS.ttf"):
+                try:
+                    f.set_variation_by_name("Semibold")
+                except Exception:
+                    pass
+            return f
+    return ImageFont.load_default()
+
+
+def _centered_text(d, y, text, font, fill, width):
+    w = d.textlength(text, font=font)
+    d.text(((width - w) / 2, y), text, font=font, fill=fill)
+
+
+def _glow(size, centre, radius, colour, alpha):
+    layer = Image.new("RGBA", size, colour + (0,))
+    m = Image.new("L", size, 0)
+    cx, cy = centre
+    ImageDraw.Draw(m).ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=alpha)
+    layer.putalpha(m.filter(ImageFilter.GaussianBlur(radius * 0.45)))
+    return layer
+
+
+def dmg_background(scale, width=660, height=400):
+    """DMG window background (points * scale). Icons sit at (180,190) and (480,190), 112pt."""
+    s = scale * SS
+    W, H = width * s, height * s
+    P = lambda v: v * s  # points -> pixels
+
+    # warm vertical gradient: orange-50 at the top fading to white
+    top, bottom = (255, 244, 230), (255, 252, 248)
+    img = Image.new("RGBA", (W, H))
+    px = ImageDraw.Draw(img)
+    for y in range(H):
+        t = y / (H - 1)
+        px.line([(0, y), (W, y)], fill=tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3)) + (255,))
+
+    # soft amber glows in the corners
+    img = Image.alpha_composite(img, _glow((W, H), (P(40), P(20)), P(170), AMBER, 70))
+    img = Image.alpha_composite(img, _glow((W, H), (P(640), P(390)), P(200), ORANGE, 45))
+
+    # faint oversized parcel watermark, bottom right
+    mark = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    box_glyph(ImageDraw.Draw(mark), P(600), P(330), P(110), P(10), ORANGE + (22,))
+    img = Image.alpha_composite(img, mark)
+
+    # white "pedestals" with a soft shadow under each icon
+    for cx in (180, 480):
+        shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        ImageDraw.Draw(shadow).ellipse((P(cx - 64), P(190 - 56), P(cx + 64), P(190 + 72)), fill=(120, 60, 0, 40))
+        img = Image.alpha_composite(img, shadow.filter(ImageFilter.GaussianBlur(P(10))))
+        disc = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        ImageDraw.Draw(disc).ellipse((P(cx - 66), P(190 - 66), P(cx + 66), P(190 + 66)), fill=(255, 255, 255, 235))
+        img = Image.alpha_composite(img, disc)
+
     d = ImageDraw.Draw(img)
-    # gentle top band
-    band = gradient(256, ORANGE, AMBER).resize((width * s, int(height * s * 0.012) + 1))
-    img.paste(band, (0, 0))
-    # arrow between the app icon (x=180) and Applications (x=480), icon centre y=200
-    y = 205 * s
-    d.line([(265 * s, y), (390 * s, y)], fill=(160, 166, 190, 255), width=6 * s // 2)
-    d.polygon([(390 * s, y - 12 * s), (410 * s, y), (390 * s, y + 12 * s)], fill=(160, 166, 190, 255))
-    return img
+
+    # top accent band
+    img.paste(gradient(256, ORANGE, AMBER).resize((W, P(5))), (0, 0))
+
+    # header
+    _centered_text(d, P(26), "Sweepbox", _font(P(22), bold=True), (41, 37, 36, 255), W)
+    _centered_text(d, P(56), "Keeps your package managers fresh and tidy", _font(P(12)), (120, 113, 108, 255), W)
+
+    # curved dashed arrow (quadratic bezier) from the app towards Applications
+    p0, p1, p2 = (P(268), P(196)), (P(330), P(150)), (P(390), P(190))
+    pts = []
+    for i in range(121):
+        t = i / 120
+        pts.append(((1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0],
+                    (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1]))
+    colour = ORANGE + (255,)
+    for i in range(0, 120, 12):
+        seg = pts[i:i + 8]
+        d.line(seg, fill=colour, width=int(P(4)), joint="curve")
+        for x, y in (seg[0], seg[-1]):
+            r = P(2)
+            d.ellipse((x - r, y - r, x + r, y + r), fill=colour)
+    # arrow head along the final tangent
+    import math
+    (x1, y1), (x2, y2) = pts[-6], pts[-1]
+    a = math.atan2(y2 - y1, x2 - x1)
+    tip = (x2 + math.cos(a) * P(10), y2 + math.sin(a) * P(10))
+    left = (tip[0] - math.cos(a - 0.5) * P(18), tip[1] - math.sin(a - 0.5) * P(18))
+    right = (tip[0] - math.cos(a + 0.5) * P(18), tip[1] - math.sin(a + 0.5) * P(18))
+    d.polygon([tip, left, right], fill=colour)
+
+    # caption + footer
+    _centered_text(d, P(318), "Drag Sweepbox to Applications to install", _font(P(14), bold=True), (68, 64, 60, 255), W)
+    _centered_text(d, P(342), "Then find it in the menu bar  ·  Free and open source (GPL-3.0)", _font(P(11)), (140, 132, 126, 255), W)
+
+    return img.resize((width * scale, height * scale), Image.LANCZOS)
+
+
+def icon_composer_bundle(path):
+    """Icon Composer (.icon) source for macOS 26+: orange fill + white glyph layer.
+    Compiled by actool (Xcode 26) into Assets.car, so macOS renders it natively instead of
+    placing a legacy icon inside a grey frame."""
+    shutil.rmtree(path, ignore_errors=True)
+    os.makedirs(os.path.join(path, "Assets"))
+    s = 1024 * SS
+    glyph = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(glyph)
+    box_glyph(d, s * 0.47, s * 0.53, s * 0.28, s * 0.054, WHITE)
+    sparkle(d, s * 0.70, s * 0.29, s * 0.092, WHITE)
+    sparkle(d, s * 0.785, s * 0.425, s * 0.042, WHITE)
+    finish(glyph, 1024).save(os.path.join(path, "Assets", "glyph.png"))
+    r, g, b = (c / 255 for c in ORANGE)
+    with open(os.path.join(path, "icon.json"), "w") as f:
+        f.write("""{
+  "fill" : {
+    "automatic-gradient" : "srgb:%.5f,%.5f,%.5f,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "glyph.png",
+          "name" : "glyph"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.4
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [
+      "macOS"
+    ]
+  }
+}
+""" % (r, g, b))
 
 
 # ---------------------------------------------------------------- outputs
@@ -237,7 +368,9 @@ def main():
     large.paste(logo, (22, 60), logo)
     large.save(os.path.join(BUILD, "windows", "wizard-large.bmp"))
 
-    dmg_background().save(os.path.join(BUILD, "macos", "dmg-background.png"))
+    dmg_background(1).save(os.path.join(BUILD, "macos", "dmg-background.png"))
+    dmg_background(2).save(os.path.join(BUILD, "macos", "dmg-background@2x.png"))
+    icon_composer_bundle(os.path.join(BUILD, "macos", "AppIcon.icon"))
     print("Icons written to", ASSETS, "and", BUILD)
 
 

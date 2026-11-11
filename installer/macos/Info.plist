@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>PkgCleaner</string>
+    <string>Sweepbox</string>
     <key>CFBundleDisplayName</key>
-    <string>PkgCleaner</string>
+    <string>Sweepbox</string>
     <key>CFBundleIdentifier</key>
-    <string>dk.pkgcleaner.desktop</string>
+    <string>dk.sweepbox.desktop</string>
     <key>CFBundleExecutable</key>
-    <string>PkgCleaner</string>
+    <string>Sweepbox</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>
@@ -30,6 +30,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2026</string>
+    <string>Copyright © 2026 Sweepbox contributors. Licensed under GPL-3.0.</string>
 </dict>
 </plist>
