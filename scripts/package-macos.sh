@@ -73,6 +73,12 @@ for ARCH in $ARCHS; do
   DMG="$OUT/Sweepbox-$VERSION-macos-$ARCH.dmg"
   "$ROOT/scripts/make-dmg.sh" "$APP" "$DMG" "$ROOT/installer/macos/dmg-background.png"
 
+  # The in-app updater installs from this zip (Sparkle convention); the DMG is for humans.
+  # ditto keeps symlinks, permissions and the code-signing structure intact.
+  echo "==> Creating update zip"
+  ZIP="$OUT/Sweepbox-$VERSION-macos-$ARCH.zip"
+  ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+
   if [[ "$SIGN_IDENTITY" != "-" ]]; then
     codesign --force -s "$SIGN_IDENTITY" "$DMG"
     if [[ -n "${NOTARY_PROFILE:-}" ]]; then

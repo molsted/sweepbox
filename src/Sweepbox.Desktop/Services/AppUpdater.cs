@@ -74,7 +74,7 @@ public sealed class AppUpdater
 
     private SparkleUpdater CreateSparkle()
     {
-        var sparkle = new SparkleUpdater(AppCastUrl, new Ed25519Checker(SecurityMode.Strict, PublicKey))
+        var sparkle = new SweepboxSparkleUpdater(AppCastUrl, new Ed25519Checker(SecurityMode.Strict, PublicKey), _quit)
         {
             UIFactory = new NetSparkleUpdater.UI.Avalonia.UIFactory(_icon),
             // The installers start the new version themselves; on macOS the DMG is opened for a drag-install.
