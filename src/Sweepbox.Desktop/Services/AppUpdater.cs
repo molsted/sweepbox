@@ -69,7 +69,7 @@ public sealed class AppUpdater
             return;
         }
         _sparkle ??= CreateSparkle();
-        _ = _sparkle.CheckForUpdatesAtUserRequest();
+        _ = _sparkle.CheckForUpdatesAtUserRequest(true); // a manual check ignores the skipped-version list
     }
 
     private SparkleUpdater CreateSparkle()
