@@ -19,7 +19,7 @@ public sealed class TrayController : IDisposable
     private readonly NativeMenuItem _runNow = new("Run Now");
     private readonly NativeMenuItem _runOnly = new("Run Only");
     private readonly NativeMenuItem _cancel = new("Cancel Run");
-    private readonly NativeMenuItem _pause = new("Pause Schedule") { ToggleType = NativeMenuItemToggleType.CheckBox };
+    private readonly NativeMenuItem _pause = new("Pause Schedule") { ToggleType = MenuItemToggleType.CheckBox };
     private readonly NativeMenuItem _checkUpdates = new("Check for Updates…");
     private readonly DispatcherTimer _refreshTimer;
     private readonly Dictionary<string, WindowIcon> _icons = new();
