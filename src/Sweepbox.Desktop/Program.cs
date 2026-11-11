@@ -51,21 +51,31 @@ internal static partial class Program
             .WithInterFont()
             .LogToTrace();
 
-    /// <summary>Single instance: hold an exclusive lock on a file for the lifetime of the process.</summary>
+    /// <summary>
+    /// Single instance: hold an exclusive lock on a file for the lifetime of the process.
+    /// A second instance retries for a few seconds first: after an in-place update the new
+    /// instance can reach the lock while the old one is still shutting down.
+    /// </summary>
     private static int WithInstanceLock(AppPaths paths, Func<int> body)
     {
-        FileStream instanceLock;
-        try
+        for (var attempt = 0; ; attempt++)
         {
-            instanceLock = new FileStream(paths.LockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            try
+            {
+                var instanceLock = new FileStream(paths.LockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                using (instanceLock)
+                    return body();
+            }
+            catch (IOException)
+            {
+                if (attempt >= 20) // 20 x 250 ms = 5 s
+                {
+                    Console.Error.WriteLine("Sweepbox is already running.");
+                    return 2;
+                }
+                Thread.Sleep(250);
+            }
         }
-        catch (IOException)
-        {
-            Console.Error.WriteLine("Sweepbox is already running.");
-            return 2;
-        }
-        using (instanceLock)
-            return body();
     }
 
     private static int Help()
