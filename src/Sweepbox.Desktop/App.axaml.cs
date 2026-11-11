@@ -30,17 +30,32 @@ public partial class App : Application
             _services.Start();
             desktop.Exit += (_, _) => _services.Dispose();
 
-            // First launch: open settings so the user sees what will run.
+            // First launch: ask about starting at login, then open settings so the user sees what will run.
             if (!File.Exists(Paths.SettingsFile))
             {
                 var initial = _services.Settings.Current;
-                initial.LaunchAtLogin = IsInstalledCopy();
                 _services.Settings.Save(initial);
                 ShowSettings();
+                if (IsInstalledCopy())
+                    _ = AskStartAtLoginOnFirstRunAsync();
             }
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>Asks the start-at-login question once; the saved settings file means it is never asked again.</summary>
+    private async Task AskStartAtLoginOnFirstRunAsync()
+    {
+        if (_settingsWindow is null)
+            return;
+        var start = await new FirstRunDialog().ShowDialog<bool>(_settingsWindow);
+        var settings = _services!.Settings.Current;
+        settings.LaunchAtLogin = start;
+        _services.Settings.Save(settings);
+        // Keep the open settings window's working copy in sync so a later Save does not undo the answer.
+        if (_settingsWindow?.DataContext is SettingsViewModel vm)
+            vm.Settings.LaunchAtLogin = start;
     }
 
     private void ShowStatus()

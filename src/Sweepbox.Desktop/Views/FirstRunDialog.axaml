@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Sweepbox.Desktop.Views.FirstRunDialog"
+        Title="Welcome to Sweepbox"
+        Icon="/Assets/app-icon.png"
+        Width="440" SizeToContent="Height" CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <Border Classes="header" DockPanel.Dock="Top">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Image Source="/Assets/app-icon.png" Width="40" Height="40" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Classes="h1" Text="Welcome to Sweepbox" />
+                    <TextBlock Text="One quick question before we start." Opacity="0.9" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Margin="20" Spacing="12">
+            <TextBlock TextWrapping="Wrap"
+                       Text="Start Sweepbox automatically when you sign in? It then runs quietly in the menu bar (macOS) or system tray (Windows) and keeps your package managers tidy on its schedule." />
+            <TextBlock Classes="muted"
+                       Text="You can change this at any time in Settings, under General." />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+                <Button Content="No, thanks" Click="OnNo" IsCancel="True" />
+                <Button Classes="accent" Content="Start at login" Click="OnYes" IsDefault="True" />
+            </StackPanel>
+        </StackPanel>
+    </DockPanel>
+</Window>
