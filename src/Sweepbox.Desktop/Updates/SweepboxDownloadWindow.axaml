@@ -1,0 +1,33 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Sweepbox.Desktop.Updates.SweepboxDownloadWindow"
+        Title="Downloading update"
+        Icon="/Assets/app-icon.png"
+        Width="440" SizeToContent="Height" CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <Border Classes="header" DockPanel.Dock="Top">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Image Source="/Assets/app-icon.png" Width="40" Height="40" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Classes="h1" Text="Downloading" />
+                    <TextBlock Text="{Binding DownloadingTitle}" Opacity="0.9" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Margin="20" Spacing="14">
+            <ProgressBar Minimum="0" Maximum="100" Value="{Binding DownloadProgress}" Height="6" />
+            <TextBlock Classes="muted" Text="{Binding UserReadableDownloadProgress}" />
+
+            <TextBlock TextWrapping="Wrap" Text="{Binding ErrorMessageText}"
+                       IsVisible="{Binding IsErrorMessageVisible}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+
+            <Button x:Name="_installButton" Classes="accent" HorizontalAlignment="Right"
+                    Content="{Binding ActionButtonTitle}"
+                    IsVisible="{Binding IsActionButtonVisible}"
+                    Click="OnInstallClick" IsDefault="True" />
+        </StackPanel>
+    </DockPanel>
+</Window>
