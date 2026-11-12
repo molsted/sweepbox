@@ -10,6 +10,7 @@ on:
       - "docs/**"
       - "LICENSE"
       - "tools/build_site.py"
+      - "tools/requirements-site.txt"
       - "src/Sweepbox.Desktop/Assets/**"
       - ".github/workflows/pages.yml"
   release:

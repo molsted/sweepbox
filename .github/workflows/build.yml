@@ -13,6 +13,7 @@ on:
       - "site/**"
       - "docs/**"
       - "tools/build_site.py"
+      - "tools/requirements-site.txt"
       - "tools/generate_site_graphics.py"
       - ".github/workflows/pages.yml"
     tags: ["v*"]
@@ -21,6 +22,7 @@ on:
       - "site/**"
       - "docs/**"
       - "tools/build_site.py"
+      - "tools/requirements-site.txt"
       - "tools/generate_site_graphics.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
