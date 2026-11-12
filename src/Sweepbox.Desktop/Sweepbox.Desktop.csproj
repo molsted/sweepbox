@@ -3,6 +3,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <!-- Every restore (and the lock file graph) covers exactly these; installers publish with -r from this list. -->
+    <RuntimeIdentifiers>osx-arm64;osx-x64;win-x64;win-arm64</RuntimeIdentifiers>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Sweepbox</AssemblyName>
     <RootNamespace>Sweepbox.Desktop</RootNamespace>
@@ -29,6 +31,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The SDK auto-references ILLink.Tasks with a version derived from the machine's installed
+         runtime, which breaks restore-locked CI (the version drifts with the runner image). An
+         explicit reference wins over the auto-injected one and keeps the lock file stable;
+         upgrade it together with the lock files. -->
+    <PackageReference Include="Microsoft.NET.ILLink.Tasks" Version="10.0.15" />
     <PackageReference Include="Avalonia" Version="12.1.6" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
