@@ -66,7 +66,7 @@ dotnet test                                     # unit tests
 python3 tools/generate_icons.py                 # regenerate all icons/installer graphics
 dotnet run --project tools/Screenshots -- docs/images/raw && python3 tools/frame_screenshots.py   # manual screenshots
 python3 tools/generate_site_graphics.py         # website hero, social card, favicons
-pip install markdown==3.7 && python3 tools/build_site.py   # website -> _site/
+pip install -r tools/requirements-site.txt && python3 tools/build_site.py   # website -> _site/
 ```
 
 To remove all build output (`bin/`, `obj/`, `artifacts/`, `_site/`, screenshot renders, caches), run the clean script. It lists what it will remove and asks first; on macOS you can also double-click `scripts/clean.command` in Finder. `--dry-run` / `-DryRun` only lists, `--yes` / `-Yes` skips the question.
