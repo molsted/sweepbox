@@ -185,6 +185,11 @@
         "resolved": "0.11.6",
         "contentHash": "NdNWGDiZ6eS/Mf/9+QHR91cj1K7Hy+PX9yrHI/zM7xFYuj9IWT2uxtB6sCHjrnxAeLV9fut1R6zHDUGKX6f9lQ=="
       },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Transitive",
+        "resolved": "10.0.15",
+        "contentHash": "u0WnRcZgBZYHlVFpbe/3Adpmb9rmNJ8/fmEwqc/xjB7fFppq+gfaLJd3Sdaw+J02zV0eP/T9dneQ3Dv5jWw6bw=="
+      },
       "NetSparkleUpdater.Chaos.NaCl": {
         "type": "Transitive",
         "resolved": "0.9.4",
@@ -250,6 +255,7 @@
           "Avalonia.Fonts.Inter": "[12.1.6, )",
           "Avalonia.Themes.Fluent": "[12.1.6, )",
           "CommunityToolkit.Mvvm": "[8.4.2, )",
+          "Microsoft.NET.ILLink.Tasks": "[10.0.15, )",
           "NetSparkleUpdater.SparkleUpdater": "[3.1.1-preview20261011001, )",
           "NetSparkleUpdater.UI.Avalonia": "[4.0.0-preview20261011001, )",
           "Sweepbox.Core": "[1.2.1, )"
