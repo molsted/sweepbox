@@ -19,6 +19,9 @@ internal sealed class FakeRunner : ICommandRunner
     /// <summary>Answer for lookups like "brew --cache" (keyed by joined arguments).</summary>
     public Dictionary<string, string> ProbeAnswers { get; } = [];
 
+    /// <summary>Exit code for a probe (keyed by joined arguments); 0 when absent.</summary>
+    public Dictionary<string, int> ProbeExitCodes { get; } = [];
+
     public string? ResolveExecutable(string name) => Installed.Contains(name) ? "/fake/" + name : null;
 
     public async Task<CommandResult> RunAsync(CommandSpec spec, Action<string> onOutput, TimeSpan timeout, CancellationToken ct)
@@ -26,9 +29,10 @@ internal sealed class FakeRunner : ICommandRunner
         if (spec.IsProbe)
         {
             Probes.Add(spec);
-            if (ProbeAnswers.TryGetValue(string.Join(' ', spec.Arguments), out var answer))
+            var key = string.Join(' ', spec.Arguments);
+            if (ProbeAnswers.TryGetValue(key, out var answer))
                 onOutput(answer);
-            return new CommandResult(0, TimeSpan.Zero);
+            return new CommandResult(ProbeExitCodes.GetValueOrDefault(key, 0), TimeSpan.Zero);
         }
         Ran.Add(spec);
         OnRun?.Invoke(spec);
