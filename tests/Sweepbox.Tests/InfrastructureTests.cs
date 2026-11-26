@@ -40,8 +40,39 @@ public sealed class InfrastructureTests : IDisposable
         var path = Path.Combine(_dir, "settings.json");
         File.WriteAllText(path, "{ not json");
 
-        Assert.Equal(24, new SettingsStore(path).Current.IntervalHours);
+        var store = new SettingsStore(path);
+        Assert.Equal(24, store.Current.IntervalHours);
         Assert.True(File.Exists(path + ".corrupt"));
+        Assert.True(store.LoadFailed);
+    }
+
+    [Fact]
+    public void Missing_settings_are_defaults_without_a_load_failure()
+    {
+        var store = new SettingsStore(Path.Combine(_dir, "settings.json"));
+        Assert.Equal(24, store.Current.IntervalHours);
+        Assert.False(store.LoadFailed);
+    }
+
+    [Fact]
+    public void Unreadable_settings_fall_back_to_defaults_instead_of_crashing()
+    {
+        if (OperatingSystem.IsWindows())
+            return; // Unix permissions make the file unreadable for this test
+        var path = Path.Combine(_dir, "settings.json");
+        File.WriteAllText(path, """{ "intervalHours": 6 }""");
+        File.SetUnixFileMode(path, UnixFileMode.None);
+        try
+        {
+            var store = new SettingsStore(path);
+            Assert.Equal(24, store.Current.IntervalHours);
+            Assert.True(store.LoadFailed);
+            Assert.Null(new RunHistoryStore(path).Latest); // the history store doesn't crash either
+        }
+        finally
+        {
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
     }
 
     [Fact]

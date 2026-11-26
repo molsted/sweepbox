@@ -92,6 +92,11 @@ internal static partial class Program
     {
         Trace.Listeners.Add(new FileTraceListener(Path.Combine(paths.LogDirectory, "sweepbox.log")));
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Trace.WriteLine($"Unhandled exception: {e.ExceptionObject}");
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Trace.WriteLine($"Unobserved task exception: {e.Exception}");
+            e.SetObserved();
+        };
         var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "?";
         Trace.WriteLine($"Sweepbox {version} started ({mode}, {RuntimeInformation.OSDescription}, {RuntimeInformation.ProcessArchitecture})");
     }

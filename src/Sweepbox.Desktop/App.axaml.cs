@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -33,7 +34,16 @@ public partial class App : Application
                 WindowsNotifications.Register();
             else if (OperatingSystem.IsMacOS())
                 MacNotifications.Initialize(requestPermission: true);
+            // A failure in a click or binding handler is logged and the tray app keeps running.
+            Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                Trace.WriteLine($"Unhandled UI exception: {e.Exception}");
+                e.Handled = true;
+            };
             _services = new AppServices(Paths);
+            if (_services.Settings.LoadFailed)
+                Notifier.Show("Settings couldn't be read",
+                    "Sweepbox is using default settings until you save them again. Details are in sweepbox.log in the log folder.");
             // Quit can be requested from background threads (the updater installs off the UI thread);
             // disposing the tray icon anywhere but the UI thread hangs on macOS, so always quit there.
             var quit = () => Dispatcher.UIThread.Post(() => Quit(desktop));

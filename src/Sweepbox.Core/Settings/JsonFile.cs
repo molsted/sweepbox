@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -12,8 +13,15 @@ internal static class JsonFile
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public static T? Read<T>(string path) where T : class
+    public static T? Read<T>(string path) where T : class => Read<T>(path, out _);
+
+    /// <summary>
+    /// Reads <paramref name="path"/>; null if it's missing. A corrupt or unreadable file also gives null, with
+    /// <paramref name="failed"/> set: a corrupt one is kept as <c>.corrupt</c>, and neither ever throws.
+    /// </summary>
+    public static T? Read<T>(string path, out bool failed) where T : class
     {
+        failed = false;
         if (!File.Exists(path))
             return null;
         try
@@ -21,10 +29,18 @@ internal static class JsonFile
             using var stream = File.OpenRead(path);
             return JsonSerializer.Deserialize<T>(stream, Options);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            // Corrupt file: keep a copy for inspection and fall back to defaults.
-            File.Copy(path, path + ".corrupt", overwrite: true);
+            failed = true;
+            Trace.WriteLine($"{path} is not valid JSON ({ex.Message}); kept a copy as {Path.GetFileName(path)}.corrupt");
+            try { File.Copy(path, path + ".corrupt", overwrite: true); }
+            catch (Exception copyEx) when (copyEx is IOException or UnauthorizedAccessException) { }
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            failed = true;
+            Trace.WriteLine($"Could not read {path}: {ex.Message}");
             return null;
         }
     }
