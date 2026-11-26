@@ -45,7 +45,9 @@ public sealed class AppServices : IDisposable
         Engine.RunAsync(RunTrigger.Manual, onlyManagerIds.Length == 0 ? null : onlyManagerIds);
 
     /// <summary>Uninstalls the packages as one run; <c>null</c> when another run is in progress.</summary>
-    public Task<RunReport?> UninstallAsync(IReadOnlyList<InstalledPackage> packages) => Engine.UninstallAsync(packages);
+    /// <param name="onStarted">Called once the run is accepted, before its first log line.</param>
+    public Task<RunReport?> UninstallAsync(IReadOnlyList<InstalledPackage> packages, Action? onStarted = null) =>
+        Engine.UninstallAsync(packages, onStarted);
 
     private void Notify(RunReport report)
     {
@@ -53,10 +55,21 @@ public sealed class AppServices : IDisposable
         var failed = report.Outcome == Outcome.Failed;
         if (!((failed && settings.NotifyOnFailure) || (report.Outcome == Outcome.Succeeded && settings.NotifyOnSuccess)))
             return;
-        var title = report.Trigger == RunTrigger.Uninstall
+        var uninstall = report.Trigger == RunTrigger.Uninstall;
+        var title = uninstall
             ? failed ? "Uninstall failed" : "Uninstall finished"
             : failed ? "Maintenance failed" : "Maintenance finished";
-        Notifier.Show(title, report.Summary);
+        Notifier.Show(title, uninstall ? UninstallBody(report) : report.Summary);
+    }
+
+    /// <summary>The failed packages (each manager's failure message), or the summary when nothing failed.</summary>
+    private static string UninstallBody(RunReport report)
+    {
+        var failures = report.Managers
+            .Where(m => m.Outcome == Outcome.Failed && !string.IsNullOrEmpty(m.Message))
+            .Select(m => m.Message!)
+            .ToList();
+        return failures.Count > 0 ? string.Join("; ", failures) : report.Summary;
     }
 
     private static void TryApplyLaunchAtLogin(bool enabled)

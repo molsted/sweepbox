@@ -35,7 +35,7 @@ public partial class StatusViewModel : ViewModelBase, IDisposable
             _log.Append(File.ReadAllText(lastLog));
         _logText = _log.ToString();
 
-        Installed = new InstalledViewModel(services, ShowLog, () => SelectedTab = InstalledTab);
+        Installed = new InstalledViewModel(services, () => SelectedTab = LogTab, ClearLog, () => SelectedTab = InstalledTab);
 
         services.Engine.Output += OnOutput;
         services.Engine.StatusChanged += OnStatusChanged;
@@ -81,12 +81,6 @@ public partial class StatusViewModel : ViewModelBase, IDisposable
             _log.Clear();
             _logDirty = true;
         }
-    }
-
-    private void ShowLog()
-    {
-        ClearLog();
-        SelectedTab = LogTab;
     }
 
     private bool CanRun() => !IsRunning;

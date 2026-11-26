@@ -24,7 +24,7 @@ public partial class StatusWindow : Window
             vm.Installed.Confirm = (packages, notes) => new UninstallConfirmDialog
             {
                 DataContext = new UninstallConfirmation(
-                    packages.Select(p => $"{p.Name} ({InstalledViewModel.GroupTitle(p)})").ToList(),
+                    packages.Select(InstalledViewModel.ConfirmationLine).ToList(),
                     notes),
             }.ShowDialog<bool>(this);
     }

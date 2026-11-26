@@ -45,6 +45,9 @@ public partial class PackageGroup : ViewModelBase
     public string? Error { get; }
     public bool HasError => Error is not null;
 
+    /// <summary>An error group has no packages, so it shows no count.</summary>
+    public bool ShowCount => !HasError;
+
     /// <summary>False when the search hides every item and there is no error to show.</summary>
     [ObservableProperty] private bool _isVisible = true;
 }
@@ -59,17 +62,21 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
 
     private readonly AppServices _services;
     private readonly Action _showLog;
+    private readonly Action _clearLog;
     private readonly Action? _showInstalled;
     private CancellationTokenSource? _loadCts;
     private Task? _loadTask;
+    private bool _loadDeferred;
     private bool _disposed;
 
-    /// <param name="showLog">Clears the live log and switches to it, as Run Now does.</param>
+    /// <param name="showLog">Switches to the live log.</param>
+    /// <param name="clearLog">Clears the live log; called from the engine once the uninstall run is accepted.</param>
     /// <param name="showInstalled">Switches back to the Installed tab, for when an uninstall can't start.</param>
-    public InstalledViewModel(AppServices services, Action showLog, Action? showInstalled = null)
+    public InstalledViewModel(AppServices services, Action showLog, Action clearLog, Action? showInstalled = null)
     {
         _services = services;
         _showLog = showLog;
+        _clearLog = clearLog;
         _showInstalled = showInstalled;
 
         services.Engine.StatusChanged += OnStatusChanged;
@@ -112,11 +119,31 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         _ => package.ManagerId,
     };
 
-    /// <summary>Starts the first listing; later calls return the same task.</summary>
-    public Task EnsureLoadedAsync() => _loadTask ??= LoadAsync();
+    /// <summary>"git (Chocolatey)", plus ", also removes git.install" when the package has companions.</summary>
+    public static string ConfirmationLine(InstalledPackage package) =>
+        $"{package.Name} ({GroupTitle(package)})" +
+        (package.Companions is { Count: > 0 } companions ? ", also removes " + string.Join(", ", companions) : "");
+
+    /// <summary>
+    /// Starts the first listing; later calls return the same task. While a run is in progress the first
+    /// listing waits: the reload when that run completes performs it.
+    /// </summary>
+    public Task EnsureLoadedAsync()
+    {
+        if (_loadTask is not null)
+            return _loadTask;
+        // Both this and the RunCompleted handler run on the UI thread. If the engine is running (or IsBusy hasn't
+        // caught up with a run that just finished), RunCompleted's posted reload hasn't run yet and will see the flag.
+        if (IsBusy || _services.Engine.Status.IsRunning)
+        {
+            _loadDeferred = true;
+            return Task.CompletedTask;
+        }
+        return _loadTask = LoadAsync(keepTicks: false);
+    }
 
     [RelayCommand(CanExecute = nameof(CanAct))]
-    private void Refresh() => _loadTask = LoadAsync();
+    private void Refresh() => _loadTask = LoadAsync(keepTicks: false);
 
     private bool CanAct() => !IsBusy && !IsLoading;
 
@@ -138,10 +165,12 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        // Clear the log only once the engine has accepted this run (onStarted runs before its first log line),
+        // so a run that started in the meantime keeps its log.
         _showLog();
         try
         {
-            if (await _services.UninstallAsync(packages) is null)
+            if (await _services.UninstallAsync(packages, _clearLog) is null)
             {
                 // Another run started in the meantime: keep the ticks and say why nothing happened.
                 StatusMessage = BusyText;
@@ -167,7 +196,8 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
             StatusMessage = null;
     }
 
-    private async Task LoadAsync()
+    /// <param name="keepTicks">Tick the same packages (by manager, name and kind) in the new list.</param>
+    private async Task LoadAsync(bool keepTicks)
     {
         _loadCts?.Cancel();
         var cts = _loadCts = new CancellationTokenSource();
@@ -178,7 +208,7 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         {
             var inventories = await _services.Inventory.ListAsync(cts.Token);
             if (!cts.IsCancellationRequested)
-                BuildGroups(inventories);
+                BuildGroups(inventories, keepTicks);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -200,35 +230,46 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void BuildGroups(IReadOnlyList<ManagerInventory> inventories)
+    private void BuildGroups(IReadOnlyList<ManagerInventory> inventories, bool keepTicks)
     {
+        var ticked = keepTicks
+            ? Groups.SelectMany(g => g.Items).Where(i => i.IsChecked).Select(i => Key(i.Package)).ToHashSet()
+            : [];
         Groups.Clear();
         foreach (var inventory in inventories.OrderBy(i => ManagerRank(i.ManagerId)))
         {
-            if (inventory.Packages.Count == 0)
-            {
-                if (inventory.Error is not null)
-                    Groups.Add(new PackageGroup(inventory.DisplayName, [], inventory.Error));
-                continue;
-            }
-
-            var error = inventory.Error;
-            foreach (var group in inventory.Packages.GroupBy(GroupTitle).OrderBy(g => Rank(g.Key)))
-            {
-                var items = group
+            var groups = inventory.Packages.GroupBy(GroupTitle)
+                .Select(g => (Title: g.Key, Items: g
                     .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(p => new PackageItem(p, UpdateSelectedCount))
-                    .ToList();
-                Groups.Add(new PackageGroup(group.Key, items, error));
-                error = null; // Show a partial-listing error once, on the manager's first group.
-            }
+                    .Select(p => new PackageItem(p, UpdateSelectedCount) { IsChecked = ticked.Contains(Key(p)) })
+                    .ToList()))
+                .ToList();
+            var errorTitle = inventory.Error is null ? null : ErrorGroupTitle(inventory);
+            if (errorTitle is not null && groups.All(g => g.Title != errorTitle))
+                groups.Add((errorTitle, []));
+            foreach (var (title, items) in groups.OrderBy(g => Rank(g.Title)))
+                Groups.Add(new PackageGroup(title, items, title == errorTitle ? inventory.Error : null));
         }
 
         if (Groups.Count == 0 && StatusMessage is null)
             StatusMessage = "No supported package managers were found.";
         UpdateSelectedCount();
         ApplyFilter();
+
+        static (string, string, PackageKind) Key(InstalledPackage p) => (p.ManagerId, p.Name, p.Kind);
     }
+
+    /// <summary>
+    /// The group a listing error is shown in. A Homebrew error with casks listed means the formulae failed;
+    /// otherwise the error is shown under the manager's first group.
+    /// </summary>
+    private static string ErrorGroupTitle(ManagerInventory inventory) => inventory.ManagerId switch
+    {
+        "brew" => inventory.Packages.Count > 0 ? GroupTitles[1] : GroupTitles[0],
+        "choco" => GroupTitles[2],
+        "npm" => GroupTitles[3],
+        _ => inventory.DisplayName,
+    };
 
     private static int ManagerRank(string managerId) => managerId switch
     {
@@ -260,11 +301,14 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
             IsBusy = _services.Engine.Status.IsRunning;
     });
 
-    private void OnRunCompleted(RunReport _) => Dispatcher.UIThread.Post(() =>
+    private void OnRunCompleted(RunReport report) => Dispatcher.UIThread.Post(() =>
     {
-        // Reload only if the list was shown before; rebuilding the groups clears the ticks.
-        if (!_disposed && _loadTask is not null)
-            _loadTask = LoadAsync();
+        // Reload only if the list was shown (or asked for) before. Ticks survive a maintenance run;
+        // after an uninstall they clear.
+        if (_disposed || (_loadTask is null && !_loadDeferred))
+            return;
+        _loadDeferred = false;
+        _loadTask = LoadAsync(keepTicks: report.Trigger != RunTrigger.Uninstall);
     });
 
     public void Dispose()
