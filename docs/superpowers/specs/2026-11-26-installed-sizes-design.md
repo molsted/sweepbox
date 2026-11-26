@@ -60,7 +60,7 @@ Measure exactly where a package owns its own folder. Where it doesn't, fall back
   - Each manager implements it with the table above.
   - **Probe commands** run through `ICommandRunner` as probes with the existing 60 s timeout and each manager's environment: `brew --prefix`, `brew info --json=v2 --cask <tokens…>`, `npm root -g`, and `pkgutil --pkg-info` / `--files`.
     - JSON is cut from the first `{` to the last `}`, because stderr is mixed in.
-    - If the one-call `brew info` fails (one stale cask fails the whole call), retry per token, and ignore the ones that still fail.
+    - If the one-call `brew info` fails (one stale cask fails the whole call), drop the tokens brew names as unavailable (`Cask '<token>' is unavailable` / `No available cask with the name "<token>"`) and retry the batch once; if that still fails or none were named, retry per token (at most 4 in parallel), and ignore the ones that still fail.
     - Casks are matched on `token`, `full_token` and `old_tokens`.
     - `pkgutil` is resolved with `runner.ResolveExecutable("pkgutil")` (it lives in `/usr/sbin`), only on macOS.
     - `pkgutil --files` paths are relative to the `volume` + `location` from `--pkg-info`, and the list includes directories. Each entry is checked: files are counted, directories are skipped (their files are listed separately), and symlinks are skipped.

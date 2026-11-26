@@ -24,7 +24,7 @@ A small menu bar (macOS) / system tray (Windows) app that keeps your package man
 - **Settings window**: interval, per-manager steps, Chocolatey exclusions, npm cache mode, start at login, notifications, step timeout and extra PATH entries.
 - **Space freed**: cleanup steps measure the cache/old-version folders before and after, and show the result per manager, per run and as a running total. Shown only when cleanup is enabled.
 - **Status window**: per-manager results, run history, a live log, and links to each run's log file.
-- **Installed tab**: lists your Homebrew apps and tools, Chocolatey packages and npm globals, and uninstalls the ones you tick after you confirm. Results show in the live log and history, and never affect the schedule.
+- **Installed tab**: lists your Homebrew apps and tools, Chocolatey packages and npm globals, shows how much disk space each one takes (with group totals and Name/Size sorting), and uninstalls the ones you tick after you confirm. Results show in the live log and history, and never affect the schedule.
 - **Finds your tools the way your terminal does**: on macOS it reads the PATH from your login shell, so Homebrew, nvm, volta and fnm installs are found even when the app is started from Finder.
 - **Never hangs on prompts**: stdin is closed and every command has a timeout. Anything that asks for a password fails and is reported, instead of blocking.
 - **Chocolatey needs admin rights**: if the app isn't elevated, it asks for UAC once per command (can be turned off in Settings).
