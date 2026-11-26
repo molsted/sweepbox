@@ -60,6 +60,8 @@ internal static class BrewCaskSizes
                             break; // an option of the artifact beside it; user data cleanup
                         case var name when name.Contains("flight", StringComparison.Ordinal):
                             break; // preflight/postflight hooks and their *_steps
+                        case "binary" or "command_wrapper" or "manpage" or "bash_completion" or "zsh_completion" or "fish_completion":
+                            break; // symlinks or tiny wrappers into the app or Caskroom, not footprint of their own
                         case "app":
                             sawApp = true;
                             if (AppPath(property.Value, artifact, home) is { } app)

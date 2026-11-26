@@ -375,6 +375,24 @@ public sealed class SizeTests : IDisposable
     }
 
     [Fact]
+    public async Task App_cask_with_binary_and_command_wrapper_links_is_exact()
+    {
+        File("Applications/LibreOffice.app/Contents/MacOS/soffice", 1000);
+        File("prefix/Caskroom/libreoffice/26.8.3/LibreOffice.dmg.json", 10);
+        var runner = CaskRunner();
+        runner.ProbeAnswers["info --json=v2 --cask libreoffice"] = Info(AppCask("libreoffice", Apps + "/LibreOffice.app",
+            "," + $$"""
+            { "binary": ["{{Apps}}/LibreOffice.app/Contents/MacOS/gengal"], "target": "/opt/homebrew/bin/gengal" },
+            { "command_wrapper": ["soffice", { "executable": "{{Apps}}/LibreOffice.app/Contents/MacOS/soffice" }], "target": "/opt/homebrew/bin/soffice" }
+            """));
+        var cask = Pkg("brew", "libreoffice", PackageKind.Cask);
+
+        var sizes = await Measure(runner, cask);
+
+        Assert.Equal(new PackageSize(1010, false), sizes[PackageKey.Of(cask)]);
+    }
+
+    [Fact]
     public async Task Missing_app_is_an_estimate_or_unknown()
     {
         File("Applications/One.app/Contents/x", 100);
