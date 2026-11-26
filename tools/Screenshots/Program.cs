@@ -27,6 +27,9 @@ AppBuilder.Configure<App>()
     .With(new FontManagerOptions { DefaultFamilyName = "avares://Avalonia.Fonts.Inter/Assets#Inter" })
     .SetupWithoutStarting();
 
+// Render as if it were 09:41 today, so relative times ("Next run Tomorrow 08:02") don't depend on when this runs.
+Format.Clock = new FixedClock(new DateTimeOffset(DateTime.Today.AddHours(9).AddMinutes(41)));
+
 var macServices = SampleData.Create(windows: false);
 var winServices = SampleData.Create(windows: true);
 foreach (var (theme, suffix) in new[] { (ThemeVariant.Light, ""), (ThemeVariant.Dark, "-dark") })
@@ -80,6 +83,11 @@ void Shot(Window window, string name, bool fullHeight = false, int selectTab = -
 }
 
 /// <summary>History, settings and a log that look like a few days of real use.</summary>
+internal sealed class FixedClock(DateTimeOffset now) : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() => now.ToUniversalTime();
+}
+
 internal static class SampleData
 {
     public static AppServices Create(bool windows)

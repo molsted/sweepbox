@@ -6,9 +6,13 @@ adds macOS / Windows 11 window chrome with shadow, and draws the menu bar / tray
   dotnet run --project tools/Screenshots -- user-docs/images/raw
   python3 tools/frame_screenshots.py
 """
+import datetime
 import os
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
+
+DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(ROOT, "user-docs", "images", "raw")
@@ -100,8 +104,8 @@ def menu_items(platform):
     last, total = ("2.1 GB", "4.1 GB") if platform == "macos" else ("825.3 MB", "1.6 GB")
     return [
         ("Sweepbox – Idle", "disabled"),
-        (f"Last run: Today 08.02 – OK, freed {last}", "disabled"),
-        ("Next run: Tomorrow 08.02", "disabled"),
+        (f"Last run: Today 08:02 – OK, freed {last}", "disabled"),
+        ("Next run: Tomorrow 08:02", "disabled"),
         (f"Space freed: {total} in 7 runs", "disabled"),
         None,
         ("Run Now", "highlight"),
@@ -111,6 +115,8 @@ def menu_items(platform):
         ("Pause Schedule", "normal"),
         ("Status and Log…", "normal"),
         ("Settings…", "normal"),
+        None,
+        ("Check for Updates…", "normal"),
         None,
         ("Quit Sweepbox", "normal"),
     ]
@@ -166,7 +172,9 @@ def menu_scene(platform, dark):
         d = ImageDraw.Draw(scene)
         d.rectangle((0, 0, W, bar_h), fill=(40, 40, 44, 255) if dark else (245, 245, 247, 255))
         fg = (255, 255, 255) if dark else (0, 0, 0)
-        clock = "Wed 11 Nov  09.41"
+        # Same moment tools/Screenshots renders the windows at: 09:41 today (English day/month names).
+        today = datetime.date.today()
+        clock = f"{DAYS[today.weekday()]} {today.day} {MONTHS[today.month - 1]}  09:41"
         fc = font(13 * S, "Medium")
         cw = d.textlength(clock, font=fc)
         d.text((W - cw - 14 * S, bar_h / 2 - 8 * S), clock, font=fc, fill=fg)
