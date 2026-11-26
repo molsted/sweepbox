@@ -77,6 +77,24 @@ public sealed class EngineTests : IDisposable
         time);
 
     [Fact]
+    public async Task A_history_that_cannot_be_written_still_ends_the_run()
+    {
+        // A file where the history's folder should be makes every write fail (like a full or read-only disk).
+        var blocker = Path.Combine(_dir, "blocked");
+        File.WriteAllText(blocker, "");
+        var history = new RunHistoryStore(Path.Combine(blocker, "history.json"));
+        var engine = new MaintenanceEngine(() => _settings, _ => Task.FromResult<ICommandRunner>(_runner),
+            [new NpmManager()], history, Path.Combine(_dir, "logs"));
+
+        var first = await engine.RunAsync(RunTrigger.Manual);
+
+        Assert.NotNull(first);
+        Assert.False(engine.Status.IsRunning);
+        Assert.Same(first, history.Latest); // kept in memory, so the schedule still moves on
+        Assert.NotNull(await engine.RunAsync(RunTrigger.Manual)); // the gate was released
+    }
+
+    [Fact]
     public async Task Runs_every_enabled_manager_and_records_history()
     {
         var report = await Engine().RunAsync(RunTrigger.Manual);

@@ -61,13 +61,13 @@ internal static partial class Program
     /// </summary>
     private static int WithInstanceLock(AppPaths paths, Func<int> body)
     {
-        for (var attempt = 0; ; attempt++)
+        // Only opening the lock is retried. An IOException from the body itself must not run it again.
+        FileStream? instanceLock = null;
+        for (var attempt = 0; instanceLock is null; attempt++)
         {
             try
             {
-                var instanceLock = new FileStream(paths.LockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-                using (instanceLock)
-                    return body();
+                instanceLock = new FileStream(paths.LockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             }
             catch (IOException)
             {
@@ -79,6 +79,9 @@ internal static partial class Program
                 Thread.Sleep(250);
             }
         }
+
+        using (instanceLock)
+            return body();
     }
 
     /// <summary>

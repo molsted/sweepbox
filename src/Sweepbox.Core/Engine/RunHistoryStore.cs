@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Sweepbox.Core.Settings;
 
 namespace Sweepbox.Core.Engine;
@@ -29,6 +30,10 @@ public sealed class RunHistoryStore(string path, int maxEntries = 50)
         get { lock (_lock) return Load().LastOrDefault(r => r.Trigger != RunTrigger.Uninstall); }
     }
 
+    /// <summary>
+    /// Records a run. It is kept in memory even if the file can't be written (full or read-only disk),
+    /// so the schedule still moves on; the failure goes to Trace instead of ending the run badly.
+    /// </summary>
     public void Add(RunReport report)
     {
         lock (_lock)
@@ -37,7 +42,14 @@ public sealed class RunHistoryStore(string path, int maxEntries = 50)
             runs.Add(report);
             if (runs.Count > maxEntries)
                 runs.RemoveRange(0, runs.Count - maxEntries);
-            JsonFile.Write(path, new HistoryFile { Runs = runs });
+            try
+            {
+                JsonFile.Write(path, new HistoryFile { Runs = runs });
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Trace.WriteLine($"Could not save run history to {path}: {ex.Message}");
+            }
         }
     }
 
