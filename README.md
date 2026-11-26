@@ -64,11 +64,12 @@ Requirements: .NET 10 SDK. Python 3 with Pillow is only needed to regenerate gra
 Package versions are pinned by the committed `packages.lock.json` files: after changing a `PackageReference`, run `dotnet restore` and commit the updated lock files along with the project change. CI restores with `RestoreLockedMode` and fails on drift. Because the SDK auto-references `Microsoft.NET.ILLink.Tasks` with a version tied to its own patch, CI pins `dotnet-version` to the exact SDK the lock files were generated with — upgrade the SDK, regenerate the lock files and the workflow version together.
 
 ```bash
-dotnet run --project src/Sweepbox.Desktop -f net10.0    # run the app
-dotnet test                                     # unit tests
-python3 tools/generate_icons.py                 # regenerate all icons/installer graphics
+dotnet run --project src/Sweepbox.Desktop -f net10.0                      # run the app (macOS, Linux)
+dotnet run --project src/Sweepbox.Desktop -f net10.0-windows10.0.19041.0  # run the app (Windows)
+dotnet test                                                               # unit tests
+python3 tools/generate_icons.py                                           # regenerate all icons/installer graphics
 dotnet run --project tools/Screenshots -- user-docs/images/raw && python3 tools/frame_screenshots.py   # manual screenshots
-python3 tools/generate_site_graphics.py         # website hero, social card, favicons
+python3 tools/generate_site_graphics.py                                   # website hero, social card, favicons
 pip install -r tools/requirements-site.txt && python3 tools/build_site.py   # website -> _site/
 ```
 
