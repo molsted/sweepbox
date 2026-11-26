@@ -8,3 +8,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # Avalonia packages must move together across Desktop and tools/Screenshots.
+      avalonia:
+        patterns:
+          - "Avalonia*"
+    ignore:
+      # Tied to the pinned .NET SDK (10.0.x); upgrade it together with the SDK and the lock files.
+      - dependency-name: "Microsoft.NET.ILLink.Tasks"
+        update-types: ["version-update:semver-major"]
