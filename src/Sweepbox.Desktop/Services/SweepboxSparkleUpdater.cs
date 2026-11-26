@@ -2,12 +2,14 @@ using System.Diagnostics;
 using NetSparkleUpdater;
 using NetSparkleUpdater.Interfaces;
 using NetSparkleUpdater.SignatureVerifiers;
+using Sweepbox.Core.Platform;
 
 namespace Sweepbox.Desktop.Services;
 
 /// <summary>
 /// SparkleUpdater with a real auto-install on macOS: the release zip holds the new .app bundle;
-/// it replaces the running one in place, quits, and a helper opens the new copy once we have exited.
+/// it is staged next to the running one, swapped in with renames (rolled back on failure), and a helper
+/// opens the new copy once we have exited.
 /// Windows keeps the installer flow.
 /// </summary>
 public sealed class SweepboxSparkleUpdater : SparkleUpdater
@@ -30,21 +32,18 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
 
         await Task.Run(() =>
         {
-            var extract = Path.Combine(Path.GetTempPath(), "sweepbox-update");
+            // A fresh, private (0700) folder: nothing else can swap the extracted bundle under us.
+            var extract = Directory.CreateTempSubdirectory("sweepbox-update-").FullName;
+            string? staged = null;
             try
             {
-                Directory.CreateDirectory(extract);
-                foreach (var entry in Directory.EnumerateFileSystemEntries(extract))
-                {
-                    Directory.Delete(entry, recursive: true);
-                }
-                if (!Run("ditto", $"-x -k \"{downloadFilePath}\" \"{extract}\""))
+                if (!Run("/usr/bin/ditto", "-x", "-k", downloadFilePath, extract))
                 {
                     Trace.WriteLine("Update: could not extract the downloaded zip");
                     return;
                 }
 
-                var bundle = Directory.EnumerateFileSystemEntries(extract, "*.app").FirstOrDefault();
+                var bundle = Directory.EnumerateDirectories(extract, "*.app").FirstOrDefault();
                 var running = FindEnclosingAppBundle(Environment.ProcessPath);
                 if (bundle is null || running is null)
                 {
@@ -52,14 +51,19 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
                     return;
                 }
 
-                // Replacing the bundle of a running app is safe: the binary keeps executing
-                // from its deleted inode until we quit.
-                Directory.Delete(running, recursive: true);
-                if (!Run("cp", $"-R \"{bundle}\" \"{running}\""))
+                // Copy next to the installed app first (same volume, so the swap is a rename), keeping
+                // the code signature and extended attributes; the installed app is untouched until then.
+                staged = AppBundleSwap.StagingPathFor(running);
+                if (!Run("/usr/bin/ditto", bundle, staged))
                 {
-                    Trace.WriteLine("Update: could not copy the new app bundle into place");
+                    Trace.WriteLine("Update: could not copy the new app bundle next to the installed one");
                     return;
                 }
+
+                // Rename the old bundle aside, the new one in, and put the old one back if that fails.
+                // The running binary keeps executing from its open files until we quit.
+                AppBundleSwap.Replace(running, staged);
+                staged = null;
                 StartRelaunchAfterExit(running);
                 _quit();
             }
@@ -69,8 +73,10 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
             }
             finally
             {
-                try { Directory.Delete(extract, recursive: true); } catch (IOException) { }
-                try { File.Delete(downloadFilePath); } catch (IOException) { }
+                if (staged is not null)
+                    try { Directory.Delete(staged, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                try { Directory.Delete(extract, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                try { File.Delete(downloadFilePath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             }
         });
     }
@@ -103,13 +109,12 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
         return bundle is not null && bundle.EndsWith(".app", StringComparison.OrdinalIgnoreCase) ? bundle : null;
     }
 
-    private static bool Run(string fileName, string arguments)
+    private static bool Run(string fileName, params string[] arguments)
     {
-        using var process = Process.Start(new ProcessStartInfo(fileName, arguments)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        });
+        var psi = new ProcessStartInfo(fileName) { UseShellExecute = false, CreateNoWindow = true };
+        foreach (var argument in arguments)
+            psi.ArgumentList.Add(argument);
+        using var process = Process.Start(psi);
         if (process is null)
             return false;
         process.WaitForExit();
