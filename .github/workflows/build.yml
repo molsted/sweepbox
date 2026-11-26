@@ -12,6 +12,7 @@ on:
     paths-ignore:
       - "site/**"
       - "docs/**"
+      - "user-docs/**"
       - "tools/build_site.py"
       - "tools/requirements-site.txt"
       - "tools/generate_site_graphics.py"
@@ -21,6 +22,7 @@ on:
     paths-ignore:
       - "site/**"
       - "docs/**"
+      - "user-docs/**"
       - "tools/build_site.py"
       - "tools/requirements-site.txt"
       - "tools/generate_site_graphics.py"
@@ -129,6 +131,6 @@ jobs:
             | `Sweepbox-*-windows-x64-setup.exe` | Windows 10/11 (x64) |
             | `Sweepbox-*-windows-arm64-setup.exe` | Windows 11 on Arm |
 
-            The macOS build is not notarized: on first launch right-click the app in Applications and choose **Open**. See the [manual](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/docs/MANUAL.md) for details.
+            The macOS build is not notarized: on first launch right-click the app in Applications and choose **Open**. See the [manual](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/user-docs/MANUAL.md) for details.
           generate_release_notes: true
           files: dist/*

@@ -3,7 +3,7 @@
   Removes build output from the working tree so the next build starts from scratch.
 .DESCRIPTION
   Removes: bin\ and obj\ of every .NET project, artifacts\ (installers, publish output),
-  _site\ (website build), docs\images\raw\ (screenshot renders), TestResults\, __pycache__\.
+  _site\ (website build), user-docs\images\raw\ (screenshot renders), TestResults\, __pycache__\.
   Never touches sources, .git, IDE settings (.idea, .vs) or local config (.claude).
 .EXAMPLE
   ./scripts/clean.ps1            # list what will be removed, ask, then delete
@@ -29,7 +29,7 @@ Get-ChildItem $Root -Recurse -Filter *.csproj -File | Where-Object { Outside-Git
         if (Test-Path $dir) { $targets.Add($dir) }
     }
 }
-foreach ($path in "artifacts", "_site", "docs\images\raw") {
+foreach ($path in "artifacts", "_site", "user-docs\images\raw") {
     $full = Join-Path $Root $path
     if (Test-Path $full) { $targets.Add($full) }
 }

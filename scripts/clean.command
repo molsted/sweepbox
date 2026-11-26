@@ -8,7 +8,7 @@
 #   scripts/clean.command --ds-store   # also delete Finder's .DS_Store files
 #
 # Removes: bin/ and obj/ of every .NET project, artifacts/ (DMGs, installers, publish output),
-# _site/ (website build), docs/images/raw/ (screenshot renders), TestResults/, __pycache__/.
+# _site/ (website build), user-docs/images/raw/ (screenshot renders), TestResults/, __pycache__/.
 # Never touches sources, .git, IDE settings (.idea, .vs) or local config (.claude).
 set -euo pipefail
 
@@ -33,7 +33,7 @@ while IFS= read -r -d '' proj; do
   for sub in bin obj; do [[ -d "$dir/$sub" ]] && targets+=("$dir/$sub"); done
 done < <(find "$ROOT" -path "$ROOT/.git" -prune -o -name "*.csproj" -print0)
 
-for path in artifacts _site docs/images/raw; do
+for path in artifacts _site user-docs/images/raw; do
   [[ -e "$ROOT/$path" ]] && targets+=("$ROOT/$path")
 done
 while IFS= read -r -d '' dir; do targets+=("$dir"); done < <(

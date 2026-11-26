@@ -5,9 +5,9 @@
   python3 tools/build_site.py            # repo/base URL from $GITHUB_REPOSITORY, default molsted/sweepbox
 
 - site/index.html and site/assets/* are copied as-is (placeholders filled in)
-- docs.html is rendered from docs/MANUAL.md (single source of truth for the manual)
+- docs.html is rendered from user-docs/MANUAL.md (single source of truth for the manual)
 - license.html is rendered from LICENSE
-- docs/images and the tray icons are copied so the manual's images work
+- user-docs/images and the tray icons are copied so the manual's images work
 """
 import html
 import os
@@ -51,7 +51,7 @@ def toc_html(tokens, depth=2):
 
 
 def build_docs(layout):
-    with open(os.path.join(ROOT, "docs", "MANUAL.md"), encoding="utf-8") as f:
+    with open(os.path.join(ROOT, "user-docs", "MANUAL.md"), encoding="utf-8") as f:
         text = f.read()
     # The site has its own sidebar TOC: drop the manual's bullet list of section links.
     text = re.sub(r"\n(- \[[^\]]+\]\(#[^)]+\)\n)+", "\n", text, count=1)
@@ -108,7 +108,7 @@ def main():
     with open(os.path.join(SRC, "_layout.html"), encoding="utf-8") as f:
         layout = f.read()
 
-    shutil.copytree(os.path.join(ROOT, "docs", "images"), os.path.join(OUT, "images"),
+    shutil.copytree(os.path.join(ROOT, "user-docs", "images"), os.path.join(OUT, "images"),
                     ignore=shutil.ignore_patterns("raw", ".DS_Store"))
     tray = os.path.join(OUT, "images", "tray")
     os.makedirs(tray, exist_ok=True)

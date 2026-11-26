@@ -6,8 +6,8 @@ artifacts/
 *.user
 .DS_Store
 
-# Raw renders from tools/Screenshots (framed copies live in docs/images)
-docs/images/raw/
+# Raw renders from tools/Screenshots (framed copies live in user-docs/images)
+user-docs/images/raw/
 
 # GitHub Pages build output (tools/build_site.py)
 _site/

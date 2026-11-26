@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Renders the app's windows off-screen (Avalonia headless + Skia) for the manual: docs/images. -->
+  <!-- Renders the app's windows off-screen (Avalonia headless + Skia) for the manual: user-docs/images. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>

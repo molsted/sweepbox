@@ -1,13 +1,13 @@
 name: Website
 
-# Builds the GitHub Pages site (site/ + docs/MANUAL.md + LICENSE) and deploys it.
+# Builds the GitHub Pages site (site/ + user-docs/MANUAL.md + LICENSE) and deploys it.
 # Runs when the site or docs change, and on every published release so the page stays current.
 on:
   push:
     branches: [main]
     paths:
       - "site/**"
-      - "docs/**"
+      - "user-docs/**"
       - "LICENSE"
       - "tools/build_site.py"
       - "tools/requirements-site.txt"

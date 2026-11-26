@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Turns the raw window renders from tools/Screenshots into manual images (docs/images):
+"""Turns the raw window renders from tools/Screenshots into manual images (user-docs/images):
 adds macOS / Windows 11 window chrome with shadow, and draws the menu bar / tray menus
 (native menus can't be rendered headless).
 
-  dotnet run --project tools/Screenshots -- docs/images/raw
+  dotnet run --project tools/Screenshots -- user-docs/images/raw
   python3 tools/frame_screenshots.py
 """
 import os
@@ -11,8 +11,8 @@ import os
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RAW = os.path.join(ROOT, "docs", "images", "raw")
-OUT = os.path.join(ROOT, "docs", "images")
+RAW = os.path.join(ROOT, "user-docs", "images", "raw")
+OUT = os.path.join(ROOT, "user-docs", "images")
 ASSETS = os.path.join(ROOT, "src", "Sweepbox.Desktop", "Assets")
 S = 2  # raw renders are 2x
 ORANGE = (234, 88, 12)

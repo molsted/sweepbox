@@ -5,11 +5,11 @@
 A small menu bar (macOS) / system tray (Windows) app that keeps your package managers up to date and tidy on a schedule, and shows how much disk space the clean-up saved.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/status-macos-dark.png">
-  <img src="docs/images/status-macos.png" alt="Sweepbox status window" width="720">
+  <source media="(prefers-color-scheme: dark)" srcset="user-docs/images/status-macos-dark.png">
+  <img src="user-docs/images/status-macos.png" alt="Sweepbox status window" width="720">
 </picture>
 
-**[Website](https://molsted.github.io/sweepbox/)** · **[Download the latest release](https://github.com/molsted/sweepbox/releases/latest)** · **[Manual](https://molsted.github.io/sweepbox/docs.html)** ([Markdown](docs/MANUAL.md))
+**[Website](https://molsted.github.io/sweepbox/)** · **[Download the latest release](https://github.com/molsted/sweepbox/releases/latest)** · **[Manual](https://molsted.github.io/sweepbox/docs.html)** ([Markdown](user-docs/MANUAL.md))
 
 | Manager    | Platform      | What it does (each step can be switched off)                                                                  |
 |------------|---------------|---------------------------------------------------------------------------------------------------------------|
@@ -56,6 +56,8 @@ On macOS the binary is `/Applications/Sweepbox.app/Contents/MacOS/Sweepbox`.
 
 ## Development
 
+Developer documentation lives in [docs/](docs/README.md); AI agents start at [AGENTS.md](AGENTS.md).
+
 Requirements: .NET 10 SDK. Python 3 with Pillow is only needed to regenerate graphics.
 
 Package versions are pinned by the committed `packages.lock.json` files: after changing a `PackageReference`, run `dotnet restore` and commit the updated lock files along with the project change. CI restores with `RestoreLockedMode` and fails on drift. Because the SDK auto-references `Microsoft.NET.ILLink.Tasks` with a version tied to its own patch, CI pins `dotnet-version` to the exact SDK the lock files were generated with — upgrade the SDK, regenerate the lock files and the workflow version together.
@@ -64,7 +66,7 @@ Package versions are pinned by the committed `packages.lock.json` files: after c
 dotnet run --project src/Sweepbox.Desktop    # run the app
 dotnet test                                     # unit tests
 python3 tools/generate_icons.py                 # regenerate all icons/installer graphics
-dotnet run --project tools/Screenshots -- docs/images/raw && python3 tools/frame_screenshots.py   # manual screenshots
+dotnet run --project tools/Screenshots -- user-docs/images/raw && python3 tools/frame_screenshots.py   # manual screenshots
 python3 tools/generate_site_graphics.py         # website hero, social card, favicons
 pip install -r tools/requirements-site.txt && python3 tools/build_site.py   # website -> _site/
 ```
@@ -86,9 +88,10 @@ tests/Sweepbox.Tests    xUnit tests
 tools/generate_icons.py   Draws the app icon, tray icons, DMG background and installer bitmaps
 tools/Screenshots         Renders the real windows off-screen (Avalonia headless) for the manual
 tools/frame_screenshots.py  Adds window chrome to those renders and draws the menu illustrations
-docs/                     The manual and its images
+user-docs/                The user manual and its images
+docs/                     Developer documentation (architecture, development, releasing)
 site/                     GitHub Pages website (landing page, layout for the docs and license pages)
-tools/build_site.py       Builds the website: renders docs/MANUAL.md and LICENSE into it
+tools/build_site.py       Builds the website: renders user-docs/MANUAL.md and LICENSE into it
 installer/macos           Info.plist, entitlements, .icns + Icon Composer icon, DMG background
 installer/windows         Inno Setup script, .ico, wizard images
 scripts/                  package-macos.sh, make-dmg.sh, package-windows.ps1, clean.command / clean.ps1

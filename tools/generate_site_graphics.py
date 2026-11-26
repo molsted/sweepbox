@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "site", "assets")
-IMAGES = os.path.join(ROOT, "docs", "images")
+IMAGES = os.path.join(ROOT, "user-docs", "images")
 ICON = os.path.join(ROOT, "installer", "macos", "AppIcon-1024.png")
 ORANGE = (234, 88, 12)
 AMBER = (251, 176, 36)
