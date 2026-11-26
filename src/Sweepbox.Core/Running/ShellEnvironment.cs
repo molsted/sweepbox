@@ -115,5 +115,8 @@ public static class ShellEnvironment
     private static IEnumerable<string> Split(string? path) =>
         string.IsNullOrWhiteSpace(path)
             ? []
-            : path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            : path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                // Windows allows quoted entries ("C:\Program Files\X"); the quotes aren't part of the folder.
+                .Select(d => d.Length >= 2 && d[0] == '"' && d[^1] == '"' ? d[1..^1].Trim() : d)
+                .Where(d => d.Length > 0);
 }

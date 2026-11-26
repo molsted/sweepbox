@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Sweepbox.Core.Managers;
 using Sweepbox.Core.Running;
 using Sweepbox.Core.Settings;
@@ -98,6 +99,7 @@ public sealed class MaintenanceEngine
         var settings = _settings();
         var report = new RunReport { StartedAt = _time.GetLocalNow(), Trigger = trigger };
         StreamWriter? log = null;
+        var logLock = new Lock();
 
         try
         {
@@ -109,7 +111,13 @@ public sealed class MaintenanceEngine
             void Write(string line)
             {
                 var stamped = $"{_time.GetLocalNow():HH:mm:ss}  {line}";
-                lock (log) log.WriteLine(stamped);
+                lock (logLock)
+                {
+                    // A child's last output can arrive after the run has closed the log; drop it then,
+                    // and never let a log write failure escape into the process reader thread.
+                    try { log?.WriteLine(stamped); }
+                    catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
+                }
                 Output?.Invoke(stamped);
             }
 
@@ -220,16 +228,36 @@ public sealed class MaintenanceEngine
         {
             report.FinishedAt = _time.GetLocalNow();
             report.Managers.Add(new ManagerReport { Id = "app", DisplayName = "Sweepbox", Outcome = Outcome.Failed, Message = ex.Message });
-            try { log?.WriteLine($"Unexpected error: {ex}"); } catch (ObjectDisposedException) { }
+            lock (logLock)
+            {
+                try { log?.WriteLine($"Unexpected error: {ex}"); }
+                catch (Exception logEx) when (logEx is IOException or ObjectDisposedException) { }
+            }
         }
         finally
         {
-            log?.Dispose();
-            _history.Add(report);
-            _cts.Dispose();
-            _cts = null;
-            Status = new EngineStatus(false, null, null, trigger == RunTrigger.Uninstall ? Status.LastRun : report);
-            _gate.Release();
+            // Whatever fails while wrapping up, the run must end: otherwise the app stays "Running"
+            // and no run (scheduled or manual) can ever start again until a restart.
+            try
+            {
+                lock (logLock)
+                {
+                    log?.Dispose();
+                    log = null;
+                }
+                _history.Add(report);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Could not finish recording the run: {ex.Message}");
+            }
+            finally
+            {
+                _cts.Dispose();
+                _cts = null;
+                Status = new EngineStatus(false, null, null, trigger == RunTrigger.Uninstall ? Status.LastRun : report);
+                _gate.Release();
+            }
         }
 
         StatusChanged?.Invoke(Status);

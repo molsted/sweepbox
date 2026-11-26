@@ -7,6 +7,14 @@ public sealed class SettingsStore(string path)
 
     public event Action<AppSettings>? Changed;
 
+    /// <summary>
+    /// True if a settings file exists but couldn't be read (corrupt or unreadable), so defaults are in use.
+    /// Callers shouldn't act on those defaults as if the user had chosen them (e.g. remove the login item).
+    /// </summary>
+    public bool LoadFailed { get { _ = Current; return _loadFailed; } }
+
+    private bool _loadFailed;
+
     /// <summary>A copy of the current settings; mutate it and pass it to <see cref="Save"/>.</summary>
     public AppSettings Current
     {
@@ -14,7 +22,11 @@ public sealed class SettingsStore(string path)
         {
             lock (_lock)
             {
-                _current ??= (JsonFile.Read<AppSettings>(path) ?? new AppSettings()).Normalize();
+                if (_current is null)
+                {
+                    _current = (JsonFile.Read<AppSettings>(path, out ReadFailure failure) ?? new AppSettings()).Normalize();
+                    _loadFailed = failure != ReadFailure.None;
+                }
                 return _current.Clone();
             }
         }
@@ -27,6 +39,7 @@ public sealed class SettingsStore(string path)
         {
             JsonFile.Write(path, copy);
             _current = copy;
+            _loadFailed = false; // the user saved: these are now their settings
         }
         Changed?.Invoke(copy.Clone());
     }

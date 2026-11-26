@@ -37,7 +37,9 @@ public sealed class AppServices : IDisposable
     public void Start()
     {
         // Keep the login item pointing at the current executable (it may have moved after an update).
-        TryApplyLaunchAtLogin(Settings.Current.LaunchAtLogin);
+        // Not when the settings file couldn't be read: the defaults would remove the user's login item.
+        if (!Settings.LoadFailed)
+            TryApplyLaunchAtLogin(Settings.Current.LaunchAtLogin);
         Scheduler.Start();
     }
 

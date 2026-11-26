@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -22,6 +23,7 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private AppUpdater? _updater;
     private bool _quitting;
+    private DateTime _lastErrorNotice = DateTime.MinValue;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -33,7 +35,25 @@ public partial class App : Application
                 WindowsNotifications.Register();
             else if (OperatingSystem.IsMacOS())
                 MacNotifications.Initialize(requestPermission: true);
+            // A failure in a click or binding handler is logged and the tray app keeps running.
+            Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                Trace.WriteLine($"Unhandled UI exception: {e.Exception}");
+                // The process can't safely continue after these; let them end it as before.
+                if (e.Exception is OutOfMemoryException or InvalidProgramException or AccessViolationException)
+                    return;
+                e.Handled = true;
+                // Say so (at most once a minute), so a failed action like Save isn't silently lost.
+                if (DateTime.UtcNow - _lastErrorNotice > TimeSpan.FromMinutes(1))
+                {
+                    _lastErrorNotice = DateTime.UtcNow;
+                    Notifier.Show("Something went wrong", $"{e.Exception.Message} Details are in sweepbox.log in the log folder.");
+                }
+            };
             _services = new AppServices(Paths);
+            if (_services.Settings.LoadFailed)
+                Notifier.Show("Settings couldn't be read",
+                    "Sweepbox is using default settings until you save them again. Details are in sweepbox.log in the log folder.");
             // Quit can be requested from background threads (the updater installs off the UI thread);
             // disposing the tray icon anywhere but the UI thread hangs on macOS, so always quit there.
             var quit = () => Dispatcher.UIThread.Post(() => Quit(desktop));
