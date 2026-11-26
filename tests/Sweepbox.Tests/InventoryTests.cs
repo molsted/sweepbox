@@ -443,12 +443,24 @@ public sealed class InventoryTests
         Assert.Equal(5, Assert.Single(reports[1]).Value!.Bytes);
     }
 
-    private sealed class SizedManager(string id, long bytes, bool skipLast = false) : ThrowingManager
+    [Fact]
+    public async Task Measure_cancelled_while_a_manager_returns_reports_nothing()
+    {
+        using var cts = new CancellationTokenSource();
+        var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            InventoryFor(new FakeRunner(), new SizedManager("a", 5, onMeasured: cts.Cancel)).MeasureAsync(
+                [Inv("a", "x")], reports.Add, cts.Token));
+        Assert.Empty(reports);
+    }
+
+    private sealed class SizedManager(string id, long bytes, bool skipLast = false, Action? onMeasured = null) : ThrowingManager
     {
         public override string Id => id;
         public override Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
             IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken)
         {
+            onMeasured?.Invoke();
             var take = skipLast ? packages.Take(packages.Count - 1) : packages;
             return Task.FromResult<IReadOnlyDictionary<PackageKey, PackageSize?>>(
                 take.ToDictionary(PackageKey.Of, _ => (PackageSize?)new PackageSize(bytes, false)));

@@ -4,7 +4,7 @@ using Sweepbox.Core.Settings;
 
 namespace Sweepbox.Core.Managers;
 
-public sealed class BrewManager : PackageManager
+public sealed partial class BrewManager : PackageManager
 {
     private static readonly Dictionary<string, string> Env = new()
     {
@@ -158,52 +158,98 @@ public sealed class BrewManager : PackageManager
     }
 
     /// <summary>
-    /// One <c>brew info</c> call for all casks. One stale cask fails the whole call, so on failure each cask is asked
-    /// for alone and those that still fail are left out.
+    /// One <c>brew info</c> call for all casks. One stale cask fails the whole call, so on failure the casks brew names
+    /// as unavailable are dropped and the call is retried once. If that fails too, or brew named none, each remaining
+    /// cask is asked for alone (a few at a time) and those that still fail are left out.
     /// </summary>
     private static async Task<IReadOnlyList<CaskFootprint>> CaskInfoAsync(ICommandRunner runner, string executable,
         IReadOnlyList<string> tokens, CancellationToken cancellationToken)
     {
-        if (await TryCaskInfoAsync(runner, executable, tokens, cancellationToken) is { } all)
+        var (all, lines) = await TryCaskInfoAsync(runner, executable, tokens, cancellationToken);
+        if (all is not null)
             return all;
-        var result = new List<CaskFootprint>();
-        if (tokens.Count > 1)
-            foreach (var token in tokens)
-                if (await TryCaskInfoAsync(runner, executable, [token], cancellationToken) is { } one)
-                    result.AddRange(one);
-        return result;
+
+        var unavailable = ParseUnavailableCasks(lines).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var remaining = tokens.Where(t => !unavailable.Contains(t)).ToList();
+        if (remaining.Count < tokens.Count)
+        {
+            if (remaining.Count == 0)
+                return [];
+            (all, _) = await TryCaskInfoAsync(runner, executable, remaining, cancellationToken);
+            if (all is not null)
+                return all;
+            if (remaining.Count == 1)
+                return [];
+        }
+        else if (tokens.Count == 1)
+        {
+            return [];
+        }
+
+        using var gate = new SemaphoreSlim(PerTokenParallelism);
+        var each = await Task.WhenAll(remaining.Select(async token =>
+        {
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                return (await TryCaskInfoAsync(runner, executable, [token], cancellationToken)).Casks ?? [];
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+        return [.. each.SelectMany(c => c)];
     }
 
-    private static async Task<IReadOnlyList<CaskFootprint>?> TryCaskInfoAsync(ICommandRunner runner, string executable,
-        IReadOnlyList<string> tokens, CancellationToken cancellationToken)
+    private const int PerTokenParallelism = 4;
+
+    private static async Task<(IReadOnlyList<CaskFootprint>? Casks, IReadOnlyList<string> Lines)> TryCaskInfoAsync(
+        ICommandRunner runner, string executable, IReadOnlyList<string> tokens, CancellationToken cancellationToken)
     {
-        var output = await ProbeAsync(runner, executable, Env, cancellationToken, ["info", "--json=v2", "--cask", .. tokens]);
+        var output = await MeasureProbeAsync(runner, executable, Env, cancellationToken, ["info", "--json=v2", "--cask", .. tokens]);
         if (!output.Succeeded)
-            return null;
+            return (null, output.Lines);
         // Warnings and errors are mixed into the output: keep the JSON object only.
         var text = string.Join('\n', output.Lines);
         int first = text.IndexOf('{'), last = text.LastIndexOf('}');
         if (first < 0 || last < first)
-            return null;
+            return (null, output.Lines);
         try
         {
-            return BrewCaskSizes.ParseCaskInfo(text[first..(last + 1)], Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            return (BrewCaskSizes.ParseCaskInfo(text[first..(last + 1)], Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)),
+                output.Lines);
         }
         catch (System.Text.Json.JsonException ex)
         {
             System.Diagnostics.Trace.WriteLine($"brew info --cask {string.Join(' ', tokens)} printed unreadable JSON: {ex.Message}");
-            return null;
+            return (null, output.Lines);
         }
     }
+
+    [GeneratedRegex(@"Cask '(?<token>[^']+)' is unavailable|No available cask with the name ""(?<token>[^""]+)""",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex UnavailableCaskRegex();
+
+    /// <summary>
+    /// The tokens a failed <c>brew info --cask</c> names as unavailable, e.g.
+    /// <c>Error: Cask 'stale' is unavailable: No Cask with this name exists.</c> (brew stops at the first one).
+    /// </summary>
+    internal static IReadOnlyList<string> ParseUnavailableCasks(IEnumerable<string> lines) =>
+    [
+        .. lines.SelectMany(l => UnavailableCaskRegex().Matches(l))
+            .Select(m => m.Groups["token"].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase),
+    ];
 
     /// <summary>The regular files a package receipt lists, or none when <c>pkgutil</c> knows no such receipt.</summary>
     private static async Task<IReadOnlyList<string>> ReceiptFilesAsync(ICommandRunner runner, string pkgutil, string id,
         CancellationToken cancellationToken)
     {
-        var info = await ProbeAsync(runner, pkgutil, NoEnv, cancellationToken, "--pkg-info", id);
+        var info = await MeasureProbeAsync(runner, pkgutil, NoEnv, cancellationToken, "--pkg-info", id);
         if (!info.Succeeded || BrewCaskSizes.ParsePkgRoot(info.Lines) is not { } root)
             return [];
-        var files = await ProbeAsync(runner, pkgutil, NoEnv, cancellationToken, "--files", id);
+        var files = await MeasureProbeAsync(runner, pkgutil, NoEnv, cancellationToken, "--files", id);
         if (!files.Succeeded)
             return [];
         return await Task.Run(() => BrewCaskSizes.ReceiptFiles(root, files.Lines).ToList(), cancellationToken);

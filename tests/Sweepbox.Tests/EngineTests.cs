@@ -16,6 +16,9 @@ internal sealed class FakeRunner : ICommandRunner
     public TaskCompletionSource? Gate { get; set; }
     public Action<CommandSpec>? OnRun { get; set; }
 
+    /// <summary>Called for every probe before it answers, e.g. to cancel a token mid-measuring.</summary>
+    public Action<CommandSpec>? OnProbe { get; set; }
+
     /// <summary>Answer for lookups like "brew --cache" (keyed by joined arguments).</summary>
     public Dictionary<string, string> ProbeAnswers { get; } = [];
 
@@ -31,7 +34,12 @@ internal sealed class FakeRunner : ICommandRunner
     {
         if (spec.IsProbe)
         {
-            Probes.Add(spec);
+            lock (Probes)
+                Probes.Add(spec);
+            OnProbe?.Invoke(spec);
+            // Like ProcessCommandRunner: a cancelled probe reports Cancelled instead of throwing.
+            if (ct.IsCancellationRequested)
+                return new CommandResult(-1, TimeSpan.Zero, Cancelled: true);
             var key = string.Join(' ', spec.Arguments);
             if (ProbeAnswers.TryGetValue(key, out var answer))
                 onOutput(answer);

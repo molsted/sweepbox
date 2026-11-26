@@ -183,10 +183,47 @@ public sealed class SizeTests : IDisposable
     }
 
     [Fact]
-    public async Task Default_manager_reports_unknown()
+    public async Task Npm_measuring_cancelled_during_the_root_query_propagates()
+    {
+        File("root/typescript/index.js", 200);
+        using var cts = new CancellationTokenSource();
+        var runner = new FakeRunner { OnProbe = _ => cts.Cancel() };
+        runner.ProbeAnswers["root -g"] = Path.Combine(_root, "root");
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new NpmManager().MeasureAsync(runner, "/fake/npm", [Pkg("npm", "typescript", PackageKind.Package)], cts.Token));
+    }
+
+    [Fact]
+    public async Task Npm_linked_package_is_unknown()
+    {
+        var target = Path.Combine(_root, "checkout");
+        File("checkout/index.js", 500);
+        Directory.CreateDirectory(Path.Combine(_root, "root"));
+        try
+        {
+            Directory.CreateSymbolicLink(Path.Combine(_root, "root", "linked"), target);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            return; // creating symlinks needs Developer Mode or admin rights on Windows
+        }
+        File("root/plain/index.js", 100);
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["root -g"] = Path.Combine(_root, "root");
+        var linked = Pkg("npm", "linked", PackageKind.Package);
+        var plain = Pkg("npm", "plain", PackageKind.Package);
+
+        var sizes = await new NpmManager().MeasureAsync(runner, "/fake/npm", [linked, plain], CancellationToken.None);
+
+        Assert.Null(sizes[PackageKey.Of(linked)]);
+        Assert.Equal(new PackageSize(100, false), sizes[PackageKey.Of(plain)]);
+    }
+
+    [Fact]
+    public async Task Choco_without_a_source_reports_unknown()
     {
         var choco = Pkg("choco", "git", PackageKind.Package);
-        var sizes = await new ChocoManager().MeasureAsync(new FakeRunner(), "/fake/choco", [choco], CancellationToken.None);
+        var sizes = await new ChocoManager(null).MeasureAsync(new FakeRunner(), "/fake/choco", [choco], CancellationToken.None);
         Assert.Single(sizes);
         Assert.Null(sizes[PackageKey.Of(choco)]);
     }
@@ -576,12 +613,17 @@ public sealed class SizeTests : IDisposable
         Assert.Contains(runner.Probes, p => p.Executable == "/fake/pkgutil");
     }
 
+    /// <summary>The error `brew info --json=v2 --cask` prints for a stale token (Homebrew 7.0.16).</summary>
+    private static string Unavailable(string token) => $"Error: Cask '{token}' is unavailable: No Cask with this name exists.";
+
+    private static int InfoProbes(FakeRunner runner) => runner.Probes.Count(p => p.Arguments.FirstOrDefault() == "info");
+
     [Fact]
-    public async Task Failed_batch_falls_back_to_one_call_per_token()
+    public async Task Unparseable_batch_failure_falls_back_to_one_call_per_token()
     {
         File("Applications/LibreOffice.app/x", 50);
         var runner = CaskRunner();
-        runner.ProbeAnswers["info --json=v2 --cask stale libre"] = "Error: Cask 'stale' is unavailable: No Cask with this name exists.";
+        runner.ProbeAnswers["info --json=v2 --cask stale libre"] = "Error: something unexpected went wrong";
         runner.ProbeExitCodes["info --json=v2 --cask stale libre"] = 1;
         runner.ProbeExitCodes["info --json=v2 --cask stale"] = 1;
         // The installed name is an old token of the current cask.
@@ -594,6 +636,88 @@ public sealed class SizeTests : IDisposable
         Assert.Null(sizes[PackageKey.Of(stale)]);
         Assert.Equal(new PackageSize(50, false), sizes[PackageKey.Of(libre)]);
         Assert.Contains(runner.Probes, p => string.Join(' ', p.Arguments) == "info --json=v2 --cask stale");
+        Assert.Contains(runner.Probes, p => string.Join(' ', p.Arguments) == "info --json=v2 --cask libre");
+    }
+
+    [Fact]
+    public async Task Unavailable_cask_is_dropped_and_the_batch_retried_once()
+    {
+        string[] live = ["a", "b", "c", "d"];
+        foreach (var t in live)
+            File($"Applications/{t}.app/x", 10);
+        var runner = CaskRunner();
+        runner.ProbeAnswers["info --json=v2 --cask a b stale c d"] = Unavailable("stale");
+        runner.ProbeExitCodes["info --json=v2 --cask a b stale c d"] = 1;
+        runner.ProbeAnswers["info --json=v2 --cask a b c d"] = Info(live.Select(t =>
+            $$"""{ "token": "{{t}}", "artifacts": [{ "app": ["{{t}}.app"], "target": "{{Apps}}/{{t}}.app" }] }""").ToArray());
+        var packages = new[] { "a", "b", "stale", "c", "d" }.Select(t => Pkg("brew", t, PackageKind.Cask)).ToArray();
+
+        var sizes = await Measure(runner, packages);
+
+        Assert.True(InfoProbes(runner) <= 2);
+        Assert.Null(sizes[PackageKey.Of(packages[2])]);
+        foreach (var t in live)
+            Assert.Equal(new PackageSize(10, false), sizes[PackageKey.Of(Pkg("brew", t, PackageKind.Cask))]);
+    }
+
+    [Theory]
+    [InlineData("Error: Cask 'stale' is unavailable: No Cask with this name exists.", "stale")]
+    [InlineData("error: cask 'Stale-App@beta' IS UNAVAILABLE: whatever", "Stale-App@beta")]
+    [InlineData("Error: No available cask with the name \"stale\".", "stale")]
+    [InlineData("Warning: x\nError: No available cask with the name \"homebrew/cask/stale\"", "homebrew/cask/stale")]
+    public void Unavailable_cask_tokens_are_read_from_brew_errors(string output, string token) =>
+        Assert.Equal([token], BrewManager.ParseUnavailableCasks(output.Split('\n')));
+
+    [Fact]
+    public void Unrelated_errors_name_no_unavailable_cask() =>
+        Assert.Empty(BrewManager.ParseUnavailableCasks(["Error: something unexpected went wrong", "Cask 'x' is fine"]));
+
+    [Fact]
+    public async Task Cancelling_during_the_batched_cask_info_propagates_without_per_token_calls()
+    {
+        File("Applications/LibreOffice.app/x", 50);
+        using var cts = new CancellationTokenSource();
+        var runner = CaskRunner();
+        runner.OnProbe = spec =>
+        {
+            if (spec.Arguments.FirstOrDefault() == "info")
+                cts.Cancel();
+        };
+        runner.ProbeAnswers["info --json=v2 --cask libreoffice other"] = Info(AppCask("libreoffice", Apps + "/LibreOffice.app"));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new BrewManager().MeasureAsync(runner, "/fake/brew",
+            [Pkg("brew", "libreoffice", PackageKind.Cask), Pkg("brew", "other", PackageKind.Cask)], cts.Token));
+        Assert.Equal(1, InfoProbes(runner));
+    }
+
+    [Fact]
+    public async Task Cancelling_during_the_prefix_query_propagates()
+    {
+        File("prefix/Cellar/wget/1.25.0/bin/wget", 1000);
+        using var cts = new CancellationTokenSource();
+        var runner = CaskRunner();
+        runner.OnProbe = _ => cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new BrewManager().MeasureAsync(runner, "/fake/brew",
+            [Pkg("brew", "wget", PackageKind.Formula)], cts.Token));
+    }
+
+    [Fact]
+    public async Task Cancelling_during_a_receipt_query_propagates()
+    {
+        if (!OperatingSystem.IsMacOS())
+            return; // receipts are read with pkgutil, which only exists on macOS
+        using var cts = new CancellationTokenSource();
+        var runner = CaskRunner();
+        runner.Installed.Add("pkgutil");
+        runner.OnProbe = spec =>
+        {
+            if (spec.Executable == "/fake/pkgutil")
+                cts.Cancel();
+        };
+        runner.ProbeAnswers["info --json=v2 --cask zoom"] = Info(ZoomCask(Apps, Path.Combine(_root, "helper")));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new BrewManager().MeasureAsync(runner, "/fake/brew",
+            [Pkg("brew", "zoom", PackageKind.Cask)], cts.Token));
+        Assert.Single(runner.Probes, p => p.Executable == "/fake/pkgutil");
     }
 
     [Fact]

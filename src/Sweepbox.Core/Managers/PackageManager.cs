@@ -58,7 +58,7 @@ public abstract class PackageManager
     protected static async Task<string?> QueryRootAsync(ICommandRunner runner, string executable,
         IReadOnlyDictionary<string, string> environment, CancellationToken cancellationToken, params string[] args)
     {
-        var output = await ProbeAsync(runner, executable, environment, cancellationToken, args);
+        var output = await MeasureProbeAsync(runner, executable, environment, cancellationToken, args);
         if (!output.Succeeded)
             return null;
         return output.Lines.Select(l => l.Trim()).LastOrDefault(l => l.Length > 0 && Path.IsPathRooted(l));
@@ -92,6 +92,20 @@ public abstract class PackageManager
         var spec = new CommandSpec("Query " + string.Join(' ', args), executable, args) { Environment = environment, IsProbe = true };
         var result = await runner.RunAsync(spec, chunk => lines.AddRange(chunk.Split('\n')), timeout, cancellationToken);
         return new ProbeOutput(result, lines);
+    }
+
+    /// <summary>
+    /// <see cref="ProbeAsync(ICommandRunner, string, IReadOnlyDictionary{string, string}, CancellationToken, string[])"/>
+    /// for measuring: the runner reports a cancelled command as a failed result, so throw
+    /// <see cref="OperationCanceledException"/> instead, before and after, so cancellation never reads as "unknown".
+    /// </summary>
+    protected static async Task<ProbeOutput> MeasureProbeAsync(ICommandRunner runner, string executable,
+        IReadOnlyDictionary<string, string> environment, CancellationToken cancellationToken, params string[] args)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var output = await ProbeAsync(runner, executable, environment, cancellationToken, args);
+        cancellationToken.ThrowIfCancellationRequested();
+        return output;
     }
 
     /// <summary>An inventory with the given packages (usually none) and an error saying why listing failed.</summary>

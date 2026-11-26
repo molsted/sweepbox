@@ -60,7 +60,7 @@ public sealed class NpmManager : PackageManager
             : new ManagerInventory(Id, DisplayName, packages, null);
     }
 
-    /// <summary>Each package is its folder under the global root; scoped names are nested folders.</summary>
+    /// <summary>Each package is its folder under the global root; scoped names are nested folders. Linked ones are unknown.</summary>
     public override async Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
         IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken)
     {
@@ -74,7 +74,8 @@ public sealed class NpmManager : PackageManager
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var folder = Path.Combine([root, .. p.Name.Split('/')]);
-                if (Directory.Exists(folder))
+                // A linked package (`npm link`) is someone's checkout elsewhere, not space this install takes.
+                if (Directory.Exists(folder) && !File.GetAttributes(folder).HasFlag(FileAttributes.ReparsePoint))
                     result[PackageKey.Of(p)] = new PackageSize(DiskUsage.Measure([folder], cancellationToken), false);
             }
             return (IReadOnlyDictionary<PackageKey, PackageSize?>)result;

@@ -65,6 +65,7 @@ public sealed class PackageInventory(
                 try
                 {
                     measured = Complete(await m.MeasureAsync(runner, executable, inventory.Packages, cancellationToken), inventory.Packages);
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
