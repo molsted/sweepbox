@@ -65,14 +65,23 @@ public sealed class ElevatedScriptTests
         Assert.Equal("C:\\Windows;C:\\Program Files\\Git\\cmd;C:\\ProgramData\\chocolatey\\bin", path);
     }
 
-    [Theory]
-    [InlineData("/opt/choco/bin/choco.exe", true)]
-    [InlineData("/OPT/CHOCO/bin/choco.exe", true)]
-    [InlineData("/opt/chocolate/choco.exe", false)]   // a sibling that only shares the prefix
-    [InlineData("/Users/ann/bin/choco.exe", false)]
-    [InlineData("/Users/Public/choco.exe", false)]
-    [InlineData("choco.exe", false)]
-    [InlineData("/opt/choco/../evil/choco.exe", false)]
-    public void Only_executables_inside_admin_owned_folders_may_run_elevated(string exe, bool expected) =>
-        Assert.Equal(expected, ElevatedScript.IsAllowedExecutable(exe, ["/opt/choco", "/Program Files"]));
+    private static readonly string Machine = Path.Combine(Path.GetTempPath(), "chocolatey"); // absolute on any OS
+
+    [Fact]
+    public void Elevated_choco_is_always_the_machine_wide_one_whatever_path_found()
+    {
+        var expected = Machine.TrimEnd('\\', '/') + "\\bin\\choco.exe";
+
+        Assert.Equal(expected, ElevatedScript.MachineChocoExecutable(Machine, @"C:\Users\ann\bin\choco.exe"));
+        Assert.Equal(expected, ElevatedScript.MachineChocoExecutable(Machine + Path.DirectorySeparatorChar, "choco"));
+    }
+
+    [Fact]
+    public void Nothing_else_runs_elevated_and_nothing_without_a_machine_wide_install()
+    {
+        Assert.Null(ElevatedScript.MachineChocoExecutable(Machine, @"C:\Windows\Tasks\npm.exe"));
+        Assert.Null(ElevatedScript.MachineChocoExecutable(null, @"C:\ProgramData\chocolatey\bin\choco.exe"));
+        Assert.Null(ElevatedScript.MachineChocoExecutable("chocolatey", "choco.exe"));          // not absolute
+        Assert.Null(ElevatedScript.MachineChocoExecutable(Machine + "\"", "choco.exe"));        // can't go in the script
+    }
 }

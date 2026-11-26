@@ -44,22 +44,21 @@ internal static class ElevatedScript
             .Where(e => e.Length > 0 && e.IndexOfAny(Unsafe) < 0));
 
     /// <summary>
-    /// True if <paramref name="executable"/> is an absolute path inside one of <paramref name="allowedRoots"/>:
-    /// folders only administrators can change (Chocolatey's install folder, Program Files, Windows), so no
-    /// program running as the user can swap what gets run as administrator.
+    /// The only program Sweepbox runs as administrator is Chocolatey, and only the machine-wide install
+    /// (the machine <c>ChocolateyInstall</c> folder, which only administrators can change). Returns its
+    /// <c>bin\choco.exe</c> when <paramref name="requested"/> is choco, else null. The copy found on the
+    /// user's PATH is ignored: a folder on it could be one the user (or a program running as them) controls.
     /// </summary>
-    public static bool IsAllowedExecutable(string executable, IEnumerable<string> allowedRoots)
+    public static string? MachineChocoExecutable(string? machineInstallDir, string requested)
     {
-        if (!Path.IsPathFullyQualified(executable) || executable.Split('/', '\\').Contains(".."))
-            return false;
-        var exe = Normalize(executable);
-        return allowedRoots
-            .Where(r => !string.IsNullOrWhiteSpace(r) && Path.IsPathFullyQualified(r))
-            .Select(r => Normalize(r).TrimEnd('/') + "/")
-            .Any(root => exe.StartsWith(root, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(machineInstallDir) || !Path.IsPathFullyQualified(machineInstallDir)
+            || machineInstallDir.IndexOfAny(Unsafe) >= 0)
+            return null;
+        var name = requested.Replace('\\', '/').Split('/')[^1];
+        if (!name.Equals("choco.exe", StringComparison.OrdinalIgnoreCase) && !name.Equals("choco", StringComparison.OrdinalIgnoreCase))
+            return null;
+        return machineInstallDir.TrimEnd('\\', '/') + "\\bin\\choco.exe";
     }
-
-    private static string Normalize(string path) => Path.GetFullPath(path).Replace('\\', '/');
 
     // Inside "…" in a batch file, & | < > ^ are literal; % still expands (doubled to escape it).
     // A quote, a line break or NUL would end the quoted value or the line, so they are refused.

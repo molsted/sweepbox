@@ -19,6 +19,16 @@ public static class AppBundleSwap
     {
         var parent = Path.GetDirectoryName(target)!;
         var name = Path.GetFileNameWithoutExtension(target);
+
+        // If a previous swap failed even to roll back, the app only exists as a hidden old copy: put it back first.
+        if (!Directory.Exists(target))
+        {
+            var newestOld = Directory.EnumerateDirectories(parent, $".{name}-old-*.app")
+                .OrderByDescending(Directory.GetLastWriteTimeUtc).FirstOrDefault();
+            if (newestOld is not null)
+                Directory.Move(newestOld, target);
+        }
+
         foreach (var pattern in new[] { $".{name}-update-*.app", $".{name}-old-*.app" })
         foreach (var leftover in Directory.EnumerateDirectories(parent, pattern))
         {

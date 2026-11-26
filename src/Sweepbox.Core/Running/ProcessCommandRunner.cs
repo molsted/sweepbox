@@ -91,18 +91,20 @@ public sealed class ProcessCommandRunner(string path) : ICommandRunner
     private async Task<CommandResult> RunElevatedWindowsAsync(CommandSpec spec, Action<string> onOutput, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        // Allowlist: only folders administrators control. Anything else could be swapped by a program running
-        // as the user between our check and the elevated start.
-        string?[] allowed =
-        [
-            Environment.GetEnvironmentVariable("ChocolateyInstall", EnvironmentVariableTarget.Machine),
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-        ];
-        if (!ElevatedScript.IsAllowedExecutable(spec.Executable, allowed.OfType<string>()))
+        // Only the machine-wide Chocolatey runs elevated, with its own install folder pinned: a user-level
+        // ChocolateyInstall would otherwise make the real choco.exe load extensions from a folder the user owns.
+        var machineChoco = Environment.GetEnvironmentVariable("ChocolateyInstall", EnvironmentVariableTarget.Machine);
+        var executable = ElevatedScript.MachineChocoExecutable(machineChoco, spec.Executable);
+        if (executable is null || !File.Exists(executable))
             return new CommandResult(-1, stopwatch.Elapsed,
-                Error: $"Refusing to run {spec.Executable} as administrator: it isn't in a folder only administrators can change.");
+                Error: "Only a machine-wide Chocolatey can run as administrator. For a per-user Chocolatey install, " +
+                       "turn off \"Ask for administrator rights (UAC)\" in Settings.");
+        var environment = new Dictionary<string, string>(spec.Environment)
+        {
+            ["ChocolateyInstall"] = machineChoco!,
+            // Empty clears a user-level value; Chocolatey then uses its default.
+            ["ChocolateyToolsLocation"] = Environment.GetEnvironmentVariable("ChocolateyToolsLocation", EnvironmentVariableTarget.Machine) ?? "",
+        };
 
         var tempDir = Directory.CreateTempSubdirectory("sweepbox-").FullName;
         try
@@ -114,7 +116,7 @@ public sealed class ProcessCommandRunner(string path) : ICommandRunner
                 await File.WriteAllTextAsync(script, ElevatedScript.Build(
                     // The machine PATH only: user PATH entries are exactly what a non-admin program could plant.
                     ElevatedScript.SafePath(Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine)),
-                    spec.Environment, spec.Executable, spec.Arguments, logFile, Environment.SystemDirectory), cancellationToken);
+                    environment, executable, spec.Arguments, logFile, Environment.SystemDirectory), cancellationToken);
             }
             catch (ArgumentException ex)
             {
@@ -127,8 +129,9 @@ public sealed class ProcessCommandRunner(string path) : ICommandRunner
                 Verb = "runas",
                 WindowStyle = ProcessWindowStyle.Hidden,
             };
-            // /d: don't run the user's AutoRun command as administrator; /v:off: no delayed expansion of "!".
-            foreach (var arg in new[] { "/d", "/v:off", "/c", script })
+            // /d: don't run the user's AutoRun command as administrator; /v:off: no delayed expansion of "!";
+            // /e:on: command extensions on whatever the user's registry says, so "exit /b %ERRORLEVEL%" works.
+            foreach (var arg in new[] { "/d", "/v:off", "/e:on", "/c", script })
                 psi.ArgumentList.Add(arg);
 
             // Process.Start blocks until the UAC prompt is answered; wait for it off-thread so the step's

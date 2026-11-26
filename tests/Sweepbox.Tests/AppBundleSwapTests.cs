@@ -64,5 +64,17 @@ public sealed class AppBundleSwapTests : IDisposable
         Assert.Equal(["Other.app", "Sweepbox.app"], Directory.GetDirectories(_dir).Select(Path.GetFileName).Order());
     }
 
+    [Fact]
+    public void A_missing_app_is_restored_from_its_old_copy_before_cleaning_up()
+    {
+        var target = Path.Combine(_dir, "Sweepbox.app"); // gone: a previous rollback failed
+        Bundle(".Sweepbox-old-abc.app", "previous");
+
+        AppBundleSwap.CleanUpLeftovers(target);
+
+        Assert.Equal("previous", Marker(target));
+        Assert.Equal(["Sweepbox.app"], Directory.GetDirectories(_dir).Select(Path.GetFileName));
+    }
+
     public void Dispose() => Directory.Delete(_dir, recursive: true);
 }

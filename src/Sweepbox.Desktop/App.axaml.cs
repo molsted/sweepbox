@@ -39,6 +39,9 @@ public partial class App : Application
             Dispatcher.UIThread.UnhandledException += (_, e) =>
             {
                 Trace.WriteLine($"Unhandled UI exception: {e.Exception}");
+                // The process can't safely continue after these; let them end it as before.
+                if (e.Exception is OutOfMemoryException or InvalidProgramException or AccessViolationException)
+                    return;
                 e.Handled = true;
                 // Say so (at most once a minute), so a failed action like Save isn't silently lost.
                 if (DateTime.UtcNow - _lastErrorNotice > TimeSpan.FromMinutes(1))
