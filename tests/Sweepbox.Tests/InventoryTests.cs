@@ -145,4 +145,58 @@ public sealed class InventoryTests
         var p = ChocoManager.ParseList(["chocolateygui|2.1.1", "foo.install|1.0", "bar|1.0", "Bar.Portable|1.0"]);
         Assert.Equal(["chocolateygui", "foo.install", "bar"], p.Select(x => x.Name));
     }
+
+    [Fact]
+    public void Npm_globals_parse_and_skip_protected()
+    {
+        var p = NpmManager.ParseGlobals("""{"dependencies":{"typescript":{"version":"5.6.3"},"npm":{"version":"10.9.0"},"corepack":{"version":"0.30.0"},"@angular/cli":{"version":"19.0.1"}}}""");
+        Assert.Equal([("@angular/cli", "19.0.1"), ("typescript", "5.6.3")], p!.Select(x => (x.Name, x.Version)).OrderBy(x => x.Name));
+        Assert.All(p!, x => { Assert.Equal("npm", x.ManagerId); Assert.Equal(PackageKind.Package, x.Kind); });
+    }
+
+    [Fact]
+    public void Npm_json_without_dependencies_is_empty_and_junk_is_null()
+    {
+        Assert.Empty(NpmManager.ParseGlobals("""{"name":"lib"}""")!);
+        Assert.Null(NpmManager.ParseGlobals("npm ERR! something"));
+    }
+
+    [Fact]
+    public async Task Npm_lists_even_when_ls_exits_non_zero_with_valid_json()
+    {
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["ls --global --depth=0 --json"] = """{"dependencies":{"typescript":{"version":"5.6.3"}},"problems":["extraneous"]}""";
+        runner.ProbeExitCodes["ls --global --depth=0 --json"] = 1;
+        var inv = await new NpmManager().ListInstalledAsync(runner, "/fake/npm", CancellationToken.None);
+        Assert.Null(inv.Error);
+        Assert.Equal(["typescript"], inv.Packages.Select(p => p.Name));
+    }
+
+    [Fact]
+    public async Task Npm_listing_failure_without_json_becomes_an_error_not_an_exception()
+    {
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["ls --global --depth=0 --json"] = "npm ERR! something";
+        runner.ProbeExitCodes["ls --global --depth=0 --json"] = 1;
+        var inv = await new NpmManager().ListInstalledAsync(runner, "/fake/npm", CancellationToken.None);
+        Assert.Empty(inv.Packages);
+        Assert.Equal("Couldn't list npm packages: \"npm ls --global --depth=0 --json\" failed (exit 1).", inv.Error);
+    }
+
+    [Fact]
+    public void Npm_uninstall_arguments()
+    {
+        var step = new NpmManager().BuildUninstallStep(new AppSettings(), "npm", new("npm", "@angular/cli", null, PackageKind.Package));
+        Assert.Equal(["uninstall", "--global", "@angular/cli"], step.Arguments);
+        Assert.Equal("false", step.Environment["npm_config_fund"]);
+        Assert.Equal("Uninstall @angular/cli", step.Description);
+    }
+
+    [Theory]
+    [InlineData("npm", true)]
+    [InlineData("NPM", true)]
+    [InlineData("corepack", true)]
+    [InlineData("typescript", false)]
+    [InlineData("npm-check", false)]
+    public void Npm_protected_names(string name, bool expected) => Assert.Equal(expected, new NpmManager().IsProtected(name));
 }

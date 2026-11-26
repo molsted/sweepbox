@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Sweepbox.Core.Running;
 using Sweepbox.Core.Settings;
 
@@ -42,4 +43,61 @@ public sealed class NpmManager : PackageManager
 
     public override async Task<IReadOnlyList<string>> GetCleanupLocationsAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken) =>
         await QueryPathAsync(runner, executable, Env, cancellationToken, "config", "get", "cache") is { } cache ? [cache] : [];
+
+    public override async Task<ManagerInventory> ListInstalledAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken)
+    {
+        var output = await ProbeAsync(runner, executable, Env, cancellationToken, "ls", "--global", "--depth=0", "--json");
+        // npm exits non-zero for harmless problems such as extraneous packages, so trust the JSON, not the exit code.
+        var packages = ParseGlobals(string.Join('\n', output.Lines));
+        return packages is null
+            ? ListFailed("npm ls --global --depth=0 --json", output)
+            : new ManagerInventory(Id, DisplayName, packages, null);
+    }
+
+    public override CommandSpec BuildUninstallStep(AppSettings settings, string executable, InstalledPackage package) =>
+        new($"Uninstall {package.Name}", executable, ["uninstall", "--global", package.Name]) { Environment = Env };
+
+    public override bool IsProtected(string packageName) => IsProtectedName(packageName);
+
+    /// <summary>npm and corepack ship with Node.js and must not be uninstalled from here.</summary>
+    private static bool IsProtectedName(string name) =>
+        name.Equals("npm", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("corepack", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Parses <c>npm ls --global --depth=0 --json</c>. Returns null when the output isn't a JSON object,
+    /// and an empty list when there is no "dependencies" object. Hides npm and corepack.
+    /// </summary>
+    internal static IReadOnlyList<InstalledPackage>? ParseGlobals(string json)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        using (doc)
+        {
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return null;
+            if (!doc.RootElement.TryGetProperty("dependencies", out var deps) || deps.ValueKind != JsonValueKind.Object)
+                return [];
+
+            return
+            [
+                .. deps.EnumerateObject()
+                    .Where(dep => !IsProtectedName(dep.Name))
+                    .Select(dep => new InstalledPackage("npm", dep.Name,
+                        dep.Value.ValueKind == JsonValueKind.Object
+                            && dep.Value.TryGetProperty("version", out var v) && v.ValueKind == JsonValueKind.String
+                            ? v.GetString()
+                            : null,
+                        PackageKind.Package)),
+            ];
+        }
+    }
 }
