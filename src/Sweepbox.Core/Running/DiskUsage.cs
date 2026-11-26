@@ -17,13 +17,17 @@ public static class DiskUsage
     public static long Measure(IEnumerable<string> directories) => Measure(directories, CancellationToken.None);
 
     /// <summary>As <see cref="Measure(IEnumerable{string})"/>, throwing <see cref="OperationCanceledException"/> when cancelled.</summary>
-    public static long Measure(IEnumerable<string> directories, CancellationToken cancellationToken)
+    public static long Measure(IEnumerable<string> directories, CancellationToken cancellationToken) =>
+        Measure(directories, cancellationToken, null);
+
+    /// <summary>Test seam: <paramref name="onEntry"/> is invoked for every entry enumerated.</summary>
+    internal static long Measure(IEnumerable<string> directories, CancellationToken cancellationToken, Action? onEntry)
     {
         cancellationToken.ThrowIfCancellationRequested();
         long total = 0;
         var seen = 0;
         foreach (var dir in directories.Distinct())
-            total += MeasureDirectory(dir, cancellationToken, ref seen);
+            total += MeasureDirectory(dir, cancellationToken, ref seen, onEntry);
         return total;
     }
 
@@ -43,20 +47,19 @@ public static class DiskUsage
             .Distinct(comparer)
             .ToList();
         var directories = normalized.Where(Directory.Exists).ToList();
-        var prefixes = directories.Select(d => d.EndsWith(Path.DirectorySeparatorChar) ? d : d + Path.DirectorySeparatorChar).ToList();
 
         long total = 0;
         var seen = 0;
         foreach (var path in normalized)
         {
-            if (prefixes.Any(prefix => path.StartsWith(prefix, comparison)))
-                continue; // inside another listed directory (a directory never matches its own prefix)
+            if (directories.Any(d => IsInside(path, d, comparison)))
+                continue; // inside another listed directory
 
             cancellationToken.ThrowIfCancellationRequested();
             if (Directory.Exists(path))
             {
                 if (!IsReparsePoint(path))
-                    total += MeasureDirectory(path, cancellationToken, ref seen);
+                    total += MeasureDirectory(path, cancellationToken, ref seen, null);
             }
             else if (File.Exists(path) && !IsReparsePoint(path))
             {
@@ -65,6 +68,15 @@ public static class DiskUsage
             }
         }
         return total;
+    }
+
+    /// <summary>True when <paramref name="path"/> lies strictly inside <paramref name="directory"/> (both normalized).</summary>
+    internal static bool IsInside(string path, string directory, StringComparison comparison)
+    {
+        if (string.Equals(path, directory, comparison))
+            return false;
+        var prefix = directory.EndsWith(Path.DirectorySeparatorChar) ? directory : directory + Path.DirectorySeparatorChar;
+        return path.StartsWith(prefix, comparison);
     }
 
     private static string Normalize(string path)
@@ -80,17 +92,21 @@ public static class DiskUsage
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return true; }
     }
 
-    private static long MeasureDirectory(string dir, CancellationToken cancellationToken, ref int seen)
+    private static long MeasureDirectory(string dir, CancellationToken cancellationToken, ref int seen, Action? onEntry)
     {
         if (!Directory.Exists(dir))
             return 0;
         long total = 0;
         try
         {
-            foreach (var file in new DirectoryInfo(dir).EnumerateFiles("*", Options))
+            foreach (var entry in new DirectoryInfo(dir).EnumerateFileSystemInfos("*", Options))
             {
-                if (++seen % CancellationInterval == 0)
+                onEntry?.Invoke();
+                // Check per directory too, so a deep tree with few files still cancels promptly.
+                if (++seen % CancellationInterval == 0 || entry is DirectoryInfo)
                     cancellationToken.ThrowIfCancellationRequested();
+                if (entry is not FileInfo file)
+                    continue;
                 try { total += file.Length; }
                 catch (IOException) { } // deleted while enumerating
             }
