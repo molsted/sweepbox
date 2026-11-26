@@ -68,11 +68,13 @@ internal static class BrewCaskSizes
                                 apps.Add(app);
                             break;
                         case "uninstall":
-                            onlyApps = false;
                             foreach (var directive in ObjectsOf(property.Value))
                             {
+                                // quit, signal, launchctl, login_item, kext, script, … only stop things; they install nothing.
+                                if (directive.TryGetProperty("delete", out _) || directive.TryGetProperty("pkgutil", out _))
+                                    onlyApps = false;
                                 foreach (var path in Strings(directive, "delete"))
-                                    if (ExpandPath(path, home) is { } full && full.IndexOfAny(Wildcards) < 0)
+                                    if (ExpandPath(path, home) is { } full && full.IndexOfAny(Wildcards) < 0 && IsDeepEnough(full, home))
                                         deletes.Add(full);
                                 foreach (var id in Strings(directive, "pkgutil"))
                                     if (id.Length > 0 && id.IndexOfAny(RegexChars) < 0)
@@ -143,6 +145,17 @@ internal static class BrewCaskSizes
             return null;
         var normalized = "/" + string.Join('/', segments);
         return normalized == home.TrimEnd('/') ? null : normalized;
+    }
+
+    /// <summary>
+    /// At least two segments below the root, and below the home folder when inside it, so a shared folder such as
+    /// /Applications, /Library or ~/Library is never measured whole.
+    /// </summary>
+    private static bool IsDeepEnough(string path, string home)
+    {
+        var homePrefix = home.TrimEnd('/') + "/";
+        var below = path.StartsWith(homePrefix, StringComparison.Ordinal) ? path[homePrefix.Length..] : path;
+        return below.Split('/', StringSplitOptions.RemoveEmptyEntries).Length >= 2;
     }
 
     /// <summary>One folder or file name that stays inside its parent.</summary>

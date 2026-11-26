@@ -288,18 +288,45 @@ public sealed class SizeTests : IDisposable
               "token": "mixed",
               "artifacts": [
                 { "app": ["Mixed.app"] },
-                { "uninstall": [{ "delete": "~/Library/Mixed", "pkgutil": ["com.mixed.core", "com.mixed.*"] },
-                                { "delete": ["$HOME/Library/MixedToo", "/Library/Mixed[12]", "~", "/", "/Library/../etc"] }] },
-                { "some_future_artifact": ["whatever"] },
+                { "uninstall": [{ "quit": "com.mixed.app" },
+                                { "delete": "~/Library/Mixed", "pkgutil": ["com.mixed.core", "com.mixed.*"] },
+                                { "delete": ["$HOME/Library/MixedToo", "/Library/Mixed[12]", "~", "/", "/Library/../etc",
+                                             "/Applications", "/Library", "~/Library", "$HOME/Documents"] }] },
                 "not an object"
               ]
             }
             """), Home));
 
-        Assert.False(mixed.AppsOnly);
+        Assert.False(mixed.AppsOnly); // the uninstall entry deletes things; nothing else is non-app
         Assert.Equal(["/Applications/Mixed.app"], mixed.AppPaths);
         Assert.Equal(["/Users/me/Library/Mixed", "/Users/me/Library/MixedToo"], mixed.DeletePaths);
         Assert.Equal(["com.mixed.core"], mixed.PkgIds);
+    }
+
+    [Fact]
+    public void Uninstall_that_only_stops_things_keeps_apps_only_and_a_bare_object_is_read()
+    {
+        var parsed = BrewCaskSizes.ParseCaskInfo(Info(
+            """
+            { "token": "visual-studio-code", "artifacts": [
+                { "app": ["Visual Studio Code.app"] },
+                { "uninstall": [{ "quit": "com.microsoft.VSCode", "launchctl": "com.microsoft.VSCode.ShipIt" }] } ] }
+            """,
+            """
+            { "token": "bare", "artifacts": [
+                { "app": ["Bare.app"] },
+                { "uninstall": { "delete": "/Library/PrivilegedHelperTools/com.bare.helper", "signal": ["TERM", "com.bare"] } } ] }
+            """,
+            """
+            { "token": "future", "artifacts": [{ "app": ["Future.app"] }, { "some_future_artifact": ["whatever"] }] }
+            """), Home);
+
+        Assert.True(parsed[0].AppsOnly);
+        Assert.Empty(parsed[0].DeletePaths);
+        Assert.False(parsed[1].AppsOnly);
+        Assert.Equal(["/Library/PrivilegedHelperTools/com.bare.helper"], parsed[1].DeletePaths);
+        Assert.False(parsed[2].AppsOnly); // an unknown kind might install anything
+        Assert.Equal(["/Applications/Future.app"], parsed[2].AppPaths);
     }
 
     [Fact]
@@ -390,6 +417,33 @@ public sealed class SizeTests : IDisposable
         var sizes = await Measure(runner, cask);
 
         Assert.Equal(new PackageSize(1010, false), sizes[PackageKey.Of(cask)]);
+    }
+
+    [Fact]
+    public async Task App_cask_whose_uninstall_only_quits_is_exact_and_one_that_deletes_is_an_estimate()
+    {
+        File("Applications/Visual Studio Code.app/Contents/MacOS/Electron", 800);
+        File("Applications/Mixed.app/Contents/MacOS/Mixed", 300);
+        var runner = CaskRunner();
+        runner.ProbeAnswers["info --json=v2 --cask visual-studio-code mixed"] = Info(
+            $$"""
+            { "token": "visual-studio-code", "artifacts": [
+                { "app": ["Visual Studio Code.app"], "target": "{{Apps}}/Visual Studio Code.app" },
+                { "uninstall": [{ "quit": "com.microsoft.VSCode", "launchctl": "com.microsoft.VSCode.ShipIt" }] },
+                { "binary": ["{{Apps}}/Visual Studio Code.app/Contents/Resources/app/bin/code"], "target": "/opt/homebrew/bin/code" } ] }
+            """,
+            $$"""
+            { "token": "mixed", "artifacts": [
+                { "app": ["Mixed.app"], "target": "{{Apps}}/Mixed.app" },
+                { "uninstall": [{ "quit": "com.mixed", "delete": "{{_root}}/Library/Mixed/gone.plist" }] } ] }
+            """);
+        var code = Pkg("brew", "visual-studio-code", PackageKind.Cask);
+        var mixed = Pkg("brew", "mixed", PackageKind.Cask);
+
+        var sizes = await Measure(runner, code, mixed);
+
+        Assert.Equal(new PackageSize(800, false), sizes[PackageKey.Of(code)]);
+        Assert.Equal(new PackageSize(300, true), sizes[PackageKey.Of(mixed)]);
     }
 
     [Fact]
