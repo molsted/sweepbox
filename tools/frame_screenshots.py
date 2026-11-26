@@ -208,7 +208,7 @@ def menu_scene(platform, dark):
     return with_shadow(rounded(scene, 10 * S), 10 * S, pad=40)
 
 
-TITLES = {"settings": "Sweepbox Settings", "status": "Sweepbox", "status-log": "Sweepbox"}
+TITLES = {"settings": "Sweepbox Settings", "status": "Sweepbox", "status-log": "Sweepbox", "installed": "Sweepbox"}
 
 
 def main():

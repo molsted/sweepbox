@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Sweepbox.Core.Engine;
 using Sweepbox.Core.Managers;
+using Sweepbox.Core.Running;
 using Sweepbox.Core.Settings;
 using Sweepbox.Desktop;
 using Sweepbox.Desktop.Services;
@@ -34,10 +35,18 @@ foreach (var (theme, suffix) in new[] { (ThemeVariant.Light, ""), (ThemeVariant.
 
     foreach (var (services, platform) in new[] { (macServices, "macos"), (winServices, "windows") })
     {
-        Shot(new SettingsWindow { DataContext = new SettingsViewModel(services.Settings, services.Engine.Managers) },
+        Shot(new SettingsWindow { DataContext = new SettingsViewModel(services.Settings, platform == "windows" ? [new ChocoManager(), new NpmManager()] : services.Engine.Managers) },
             $"settings-{platform}{suffix}", fullHeight: true);
         Shot(new StatusWindow { DataContext = new StatusViewModel(services, () => { }) }, $"status-{platform}{suffix}");
-        Shot(new StatusWindow { DataContext = new StatusViewModel(services, () => { }) }, $"status-log-{platform}{suffix}", selectTab: 1);
+        Shot(new StatusWindow { DataContext = new StatusViewModel(services, () => { }) }, $"status-log-{platform}{suffix}", selectTab: 2);
+
+        var installed = new StatusViewModel(services, () => { });
+        installed.Installed.EnsureLoadedAsync().GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+        foreach (var item in installed.Installed.Groups.SelectMany(g => g.Items).Where(i => i.Package.Name is "zoom" or "typescript" or "gimp" or "yarn").Take(2))
+            item.IsChecked = true;
+        Dispatcher.UIThread.RunJobs();
+        Shot(new StatusWindow { DataContext = installed }, $"installed-{platform}{suffix}", selectTab: 1);
     }
 }
 Console.WriteLine($"Screenshots written to {outDir}");
@@ -105,8 +114,51 @@ internal static class SampleData
             history.Add(report);
         }
 
-        var managers = windows ? new PackageManager[] { new ChocoManager(), new NpmManager() } : [new BrewManager(), new NpmManager()];
-        return new AppServices(paths, managers);
+        var managers = windows ? new PackageManager[] { new OnAnyOS(new ChocoManager()), new NpmManager() } : [new BrewManager(), new NpmManager()];
+        return new AppServices(paths, managers, _ => Task.FromResult<ICommandRunner>(new FakeRunner(windows)));
+    }
+
+    /// <summary>Lets the Windows screenshots list Chocolatey on a Mac: everything is forwarded except the OS check.</summary>
+    private sealed class OnAnyOS(PackageManager inner) : PackageManager
+    {
+        public override string Id => inner.Id;
+        public override string DisplayName => inner.DisplayName;
+        public override string ShortName => inner.ShortName;
+        public override string ExecutableName => inner.ExecutableName;
+        public override bool IsSupportedOnThisOS => true;
+        public override bool IsEnabled(AppSettings settings) => inner.IsEnabled(settings);
+        public override IReadOnlyList<CommandSpec> BuildSteps(AppSettings settings, string executable) => inner.BuildSteps(settings, executable);
+        public override Task<ManagerInventory> ListInstalledAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken) =>
+            inner.ListInstalledAsync(runner, executable, cancellationToken);
+        public override CommandSpec BuildUninstallStep(AppSettings settings, string executable, InstalledPackage package) =>
+            inner.BuildUninstallStep(settings, executable, package);
+        public override bool IsProtected(string packageName) => inner.IsProtected(packageName);
+    }
+
+    /// <summary>Answers the listing probes with canned output. Never starts a process.</summary>
+    private sealed class FakeRunner(bool windows) : ICommandRunner
+    {
+        public string? ResolveExecutable(string name) => "/fake/" + name;
+
+        public Task<CommandResult> RunAsync(CommandSpec spec, Action<string> onOutput, TimeSpan timeout, CancellationToken cancellationToken)
+        {
+            if (spec.IsProbe)
+                foreach (var line in Answer(string.Join(' ', spec.Arguments)))
+                    onOutput(line);
+            return Task.FromResult(new CommandResult(0, TimeSpan.Zero));
+        }
+
+        private string[] Answer(string args) => args switch
+        {
+            "list --cask --versions" => ["google-chrome 131.0.6778.86", "visual-studio-code 1.106.2", "zoom 6.2.11", "slack 4.41.98", "gimp 3.0.4", "vlc 3.0.21"],
+            "leaves --installed-on-request" => ["ffmpeg", "git", "jq", "node", "ripgrep", "sqlite", "tree", "wget"],
+            "list --formula --versions" => ["ffmpeg 7.1.1", "git 2.52.1", "jq 1.8.1", "node 25.2.1", "ripgrep 15.1.0", "sqlite 3.51.1", "tree 2.2.1", "wget 1.25.0", "openssl@3 3.6.1"],
+            "--version" => ["2.5.1"],
+            "list --limit-output" when windows =>
+                ["7zip|24.9.0", "git|2.52.1", "git.install|2.52.1", "googlechrome|131.0.6778.86", "nodejs|25.2.1", "notepadplusplus|8.8.1", "powertoys|0.96.1", "vscode|1.106.2", "vlc|3.0.21", "chocolatey|2.5.1"],
+            "ls --global --depth=0 --json" => ["{\"dependencies\":{\"npm\":{\"version\":\"11.6.2\"},\"typescript\":{\"version\":\"5.9.3\"},\"yarn\":{\"version\":\"1.22.22\"},\"serve\":{\"version\":\"14.2.5\"}}}"],
+            _ => [],
+        };
     }
 
     private static ManagerReport Choco(bool failed, long freed)

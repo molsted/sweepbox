@@ -13,9 +13,9 @@ Sweepbox.Tests    (xUnit)                                   ──references─�
 
 | Folder | Types | Responsibility |
 |---|---|---|
-| `Managers/` | `PackageManager` (abstract), `BrewManager`, `ChocoManager`, `NpmManager` | Turn settings into an ordered list of `CommandSpec` steps. Say which folders cleanup steps shrink |
+| `Managers/` | `PackageManager` (abstract), `BrewManager`, `ChocoManager`, `NpmManager`, `PackageInventory`, `InstalledPackage`, `UninstallNotes` | Turn settings into an ordered list of `CommandSpec` steps. Say which folders cleanup steps shrink. List installed packages and build uninstall commands |
 | `Running/` | `CommandSpec`, `CommandResult`, `ICommandRunner`, `ProcessCommandRunner`, `ShellEnvironment`, `DiskUsage` | Find tools on the user's PATH, run one command with a timeout, measure folder sizes |
-| `Engine/` | `MaintenanceEngine`, `Scheduler`, `RunReport`, `RunHistoryStore` | Run the managers, record the results, decide when the next run is due |
+| `Engine/` | `MaintenanceEngine`, `Scheduler`, `RunReport`, `RunHistoryStore` | Run the managers and uninstalls, record the results, decide when the next run is due |
 | `Settings/` | `AppSettings`, `SettingsStore`, `AppPaths`, `JsonFile` | User settings, data folder locations, atomic JSON persistence |
 | `Platform/` | `LaunchAtLogin` | LaunchAgent plist (macOS) / `HKCU\…\Run` value (Windows) |
 
@@ -27,6 +27,8 @@ Each manager is a `PackageManager` subclass in `Managers/PackageManager.cs`:
 - `ExecutableName` is looked up on the resolved PATH. If it isn't found, the manager is reported as *Skipped*.
 - `IsSupportedOnThisOS` filters `PackageManager.ForThisOS`. Homebrew is macOS/Linux, Chocolatey is Windows, npm is everywhere.
 - `BuildSteps(settings, executable)` is pure: it returns the commands for one run and has no side effects. That is why `ManagerStepTests` can check the exact argument lists.
+- `ListInstalledAsync` runs probes and parses them with pure `internal static` functions. Homebrew uses `list --cask --versions`, `leaves --installed-on-request` and `list --formula --versions` (dependency-only formulae are deliberately not listed). Chocolatey checks `--version` first and needs 2.x, because on 1.x `list` queries the remote feed, then runs `list --limit-output` (`name|version`). npm runs `ls --global --depth=0 --json` and trusts the JSON over the exit code. A failing listing becomes a `ManagerInventory` with an error, not an exception.
+- `BuildUninstallStep` returns the uninstall command and `IsProtected` hides packages that must never be offered (`npm`, `corepack`, `chocolatey`, `chocolatey-*.extension`). No uninstall command uses `--force`. Homebrew sets `HOMEBREW_NO_AUTOREMOVE=1` when the Autoremove setting is off, and Chocolatey elevates when `ElevateWithUac` is on.
 - `GetCleanupLocationsAsync` may run quick *probe* commands (for example `brew --cache`, via `QueryPathAsync`) to find the folders whose size is measured.
 
 `CommandSpec` flags:
@@ -68,6 +70,14 @@ A failed step doesn't stop the manager's later steps. The manager's outcome is *
 
 Events: `StatusChanged` (current manager/step), `Output` (each timestamped log line) and `RunCompleted`. **They are raised on background threads.** Desktop code must marshal to the UI thread (`Dispatcher.UIThread.Post`) before touching UI state.
 
+### Listing and uninstalling
+
+`PackageInventory.ListAsync` lists every supported manager whose executable is found, whether or not it is enabled, one after another. It takes no run gate, because it only reads. `UninstallNotes` builds the confirmation notes, such as the Homebrew dependency clean-up and the UAC prompts.
+
+`MaintenanceEngine.UninstallAsync(packages)` shares the gate, log file, events, cancellation and history recording with `RunAsync`, and records the run with `RunTrigger.Uninstall`. Each manager gets one `ManagerReport` with one `StepReport` per package. A failed package doesn't stop the next one. There is no cleanup measurement, so uninstalls never add to space freed. It returns `null` if a run is already in progress.
+
+Uninstalls must not look like maintenance runs. `RunHistoryStore.LatestMaintenance` is the newest run whose trigger isn't `Uninstall`. `Scheduler.NextRunAt` and `EngineStatus.LastRun` use it, so an uninstall changes neither the schedule nor the Overview tab and tray's "Last run". The history list shows all runs.
+
 ### Scheduling
 
 `Scheduler` checks once a minute whether a run is due. It doesn't set a single long timer. Polling means sleep/wake and clock changes need no special handling: an overdue run starts within a minute of waking.
@@ -99,10 +109,10 @@ JSON uses camelCase and string enums. Missing properties get the C# defaults, so
 | Area | Types | Notes |
 |---|---|---|
 | Entry point | `Program` | Parses `--dry-run`, `--run` and `--help`. Otherwise holds the single-instance lock and starts Avalonia |
-| Composition | `AppServices` | Creates `SettingsStore`, `RunHistoryStore`, `MaintenanceEngine` and `Scheduler`. Sends notifications and keeps the login item up to date |
+| Composition | `AppServices` | Creates `SettingsStore`, `RunHistoryStore`, `MaintenanceEngine`, `PackageInventory` and `Scheduler`, and exposes `Inventory` and `UninstallAsync`. Sends notifications and keeps the login item up to date |
 | App lifetime | `App` | Creates the services, tray and updater. Opens the status and settings windows (one of each). Handles first run |
 | Tray / menu bar | `Tray/TrayController` | Icon state (idle/running/error), the menu, Run Now / Run Only / Cancel / Pause |
-| Windows | `Views/`, `ViewModels/` | MVVM with CommunityToolkit.Mvvm. `SettingsViewModel` edits a working copy of `AppSettings`, and `StatusViewModel` shows history and the live log |
+| Windows | `Views/`, `ViewModels/` | MVVM with CommunityToolkit.Mvvm. `SettingsViewModel` edits a working copy of `AppSettings`, and `StatusViewModel` shows history and the live log. Its tabs are Overview, Installed and Live log. `InstalledViewModel` loads the groups on first show, keeps ticks across searches and refreshes after each run |
 | Updates | `Services/AppUpdater`, `Services/SweepboxSparkleUpdater`, `Services/SweepboxUIFactory`, `Updates/` | NetSparkle self-update with Sweepbox-styled dialogs |
 | Helpers | `Services/Notifier`, `Services/Format` | Native notifications, text formatting |
 
