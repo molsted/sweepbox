@@ -1,4 +1,4 @@
-// Renders Sweepbox's real windows off-screen with sample data, for the manual (docs/images).
+// Renders Sweepbox's real windows off-screen with sample data, for the manual (user-docs/images).
 //   dotnet run --project tools/Screenshots -- <output dir>      then: python3 tools/frame_screenshots.py
 using Avalonia;
 using Avalonia.Controls;
@@ -16,7 +16,7 @@ using Sweepbox.Desktop.Services;
 using Sweepbox.Desktop.ViewModels;
 using Sweepbox.Desktop.Views;
 
-var outDir = Path.GetFullPath(args.Length > 0 ? args[0] : "docs/images/raw");
+var outDir = Path.GetFullPath(args.Length > 0 ? args[0] : "user-docs/images/raw");
 Directory.CreateDirectory(outDir);
 
 AppBuilder.Configure<App>()
