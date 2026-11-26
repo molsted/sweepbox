@@ -1,5 +1,7 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Avalonia;
+using Sweepbox.Core.Diagnostics;
 using Sweepbox.Core.Engine;
 using Sweepbox.Core.Running;
 using Sweepbox.Core.Settings;
@@ -23,6 +25,7 @@ internal static partial class Program
     public static int Main(string[] args)
     {
         var paths = AppPaths.Default();
+        StartDiagnosticsLog(paths, args.Length > 0 ? args[0] : "app");
 
         if (args.Length > 0 && args[0] is "--help" or "-h" or "--dry-run" or "--run")
         {
@@ -76,6 +79,18 @@ internal static partial class Program
                 Thread.Sleep(250);
             }
         }
+    }
+
+    /// <summary>
+    /// Sends Trace output (notification, update and login-item diagnostics) to logs/sweepbox.log, which
+    /// otherwise only reaches an attached debugger. Unhandled exceptions are recorded there as well.
+    /// </summary>
+    private static void StartDiagnosticsLog(AppPaths paths, string mode)
+    {
+        Trace.Listeners.Add(new FileTraceListener(Path.Combine(paths.LogDirectory, "sweepbox.log")));
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Trace.WriteLine($"Unhandled exception: {e.ExceptionObject}");
+        var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "?";
+        Trace.WriteLine($"Sweepbox {version} started ({mode}, {RuntimeInformation.OSDescription}, {RuntimeInformation.ProcessArchitecture})");
     }
 
     private static int Help()

@@ -52,7 +52,7 @@ On macOS the binary is `/Applications/Sweepbox.app/Contents/MacOS/Sweepbox`.
 | | macOS | Windows |
 |---|---|---|
 | Settings, history | `~/Library/Application Support/Sweepbox/` | `%APPDATA%\Sweepbox\` |
-| Run logs (last 60) | `…/Sweepbox/logs/` | `…\Sweepbox\logs\` |
+| Run logs (last 60), diagnostics (`sweepbox.log`) | `…/Sweepbox/logs/` | `…\Sweepbox\logs\` |
 | Start at login | `~/Library/LaunchAgents/dk.sweepbox.agent.plist` | `HKCU\…\CurrentVersion\Run\Sweepbox` |
 
 ## Development
