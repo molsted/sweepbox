@@ -36,8 +36,8 @@
          explicit reference wins over the auto-injected one and keeps the lock file stable;
          upgrade it together with the lock files. -->
     <PackageReference Include="Microsoft.NET.ILLink.Tasks" Version="10.0.15" />
-    <PackageReference Include="Avalonia" Version="12.1.6" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageReference Include="Avalonia" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.2.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.6" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
