@@ -118,4 +118,75 @@ public sealed class SizeTests : IDisposable
         Assert.Equal(
             PackageKey.Of(new InstalledPackage("choco", "git", "1", PackageKind.Package, ["git.install"])),
             PackageKey.Of(new InstalledPackage("choco", "git", "2", PackageKind.Package)));
+
+    private static InstalledPackage Pkg(string manager, string name, PackageKind kind) => new(manager, name, null, kind);
+
+    [Fact]
+    public async Task Brew_formula_size_is_its_cellar_folder()
+    {
+        File("prefix/Cellar/wget/1.25.0/bin/wget", 1000);
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["--prefix"] = Path.Combine(_root, "prefix");
+        var wget = Pkg("brew", "molsted/tap/wget", PackageKind.Formula);
+        var cask = Pkg("brew", "firefox", PackageKind.Cask);
+
+        var sizes = await new BrewManager().MeasureAsync(runner, "/fake/brew", [wget, cask], CancellationToken.None);
+
+        Assert.Equal(new PackageSize(1000, false), sizes[PackageKey.Of(wget)]);
+        Assert.Null(sizes[PackageKey.Of(cask)]);
+    }
+
+    [Fact]
+    public async Task Npm_size_is_its_global_folder_including_scoped()
+    {
+        File("root/@angular/cli/package.json", 300);
+        File("root/typescript/index.js", 200);
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["root -g"] = "npm warn something\n" + Path.Combine(_root, "root") + "\n";
+        var cli = Pkg("npm", "@angular/cli", PackageKind.Package);
+        var ts = Pkg("npm", "typescript", PackageKind.Package);
+
+        var sizes = await new NpmManager().MeasureAsync(runner, "/fake/npm", [cli, ts], CancellationToken.None);
+
+        Assert.Equal(new PackageSize(300, false), sizes[PackageKey.Of(cli)]);
+        Assert.Equal(new PackageSize(200, false), sizes[PackageKey.Of(ts)]);
+    }
+
+    [Fact]
+    public async Task Missing_folder_or_failed_probe_is_unknown()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "root"));
+        var ts = Pkg("npm", "typescript", PackageKind.Package);
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["root -g"] = Path.Combine(_root, "root");
+
+        Assert.Null((await new NpmManager().MeasureAsync(runner, "/fake/npm", [ts], CancellationToken.None))[PackageKey.Of(ts)]);
+
+        runner.ProbeExitCodes["root -g"] = 1;
+        Assert.Null((await new NpmManager().MeasureAsync(runner, "/fake/npm", [ts], CancellationToken.None))[PackageKey.Of(ts)]);
+
+        var wget = Pkg("brew", "wget", PackageKind.Formula);
+        Assert.Null((await new BrewManager().MeasureAsync(new FakeRunner(), "/fake/brew", [wget], CancellationToken.None))[PackageKey.Of(wget)]);
+    }
+
+    [Fact]
+    public async Task Cancelled_measuring_propagates()
+    {
+        File("root/typescript/index.js", 200);
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["root -g"] = Path.Combine(_root, "root");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new NpmManager().MeasureAsync(runner, "/fake/npm", [Pkg("npm", "typescript", PackageKind.Package)], cts.Token));
+    }
+
+    [Fact]
+    public async Task Default_manager_reports_unknown()
+    {
+        var choco = Pkg("choco", "git", PackageKind.Package);
+        var sizes = await new ChocoManager().MeasureAsync(new FakeRunner(), "/fake/choco", [choco], CancellationToken.None);
+        Assert.Single(sizes);
+        Assert.Null(sizes[PackageKey.Of(choco)]);
+    }
 }

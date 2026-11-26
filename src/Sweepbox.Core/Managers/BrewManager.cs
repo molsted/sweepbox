@@ -83,6 +83,28 @@ public sealed class BrewManager : PackageManager
         return new ManagerInventory(Id, DisplayName, [.. caskPackages, .. ParseFormulae(leaves.Lines, versions.Lines)], null);
     }
 
+    /// <summary>Formulae are their Cellar folder (exact). Casks are not measured yet.</summary>
+    public override async Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
+        IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken)
+    {
+        var result = Unknown(packages).ToDictionary();
+        var formulae = packages.Where(p => p.Kind == PackageKind.Formula).ToList();
+        if (formulae.Count == 0 || await QueryRootAsync(runner, executable, Env, cancellationToken, "--prefix") is not { } prefix)
+            return result;
+
+        return await Task.Run(() =>
+        {
+            foreach (var p in formulae)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var folder = Path.Combine(prefix, "Cellar", p.Name[(p.Name.LastIndexOf('/') + 1)..]);
+                if (Directory.Exists(folder))
+                    result[PackageKey.Of(p)] = new PackageSize(DiskUsage.Measure([folder], cancellationToken), false);
+            }
+            return (IReadOnlyDictionary<PackageKey, PackageSize?>)result;
+        }, cancellationToken);
+    }
+
     public override CommandSpec BuildUninstallStep(AppSettings settings, string executable, InstalledPackage package)
     {
         var env = new Dictionary<string, string>(Env);

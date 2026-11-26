@@ -34,6 +34,36 @@ public abstract class PackageManager
     public virtual Task<ManagerInventory> ListInstalledAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken) =>
         Task.FromResult(new ManagerInventory(Id, DisplayName, [], null));
 
+    /// <summary>
+    /// How much disk space each package occupies. Every input package is in the result, null when unknown.
+    /// The default knows nothing.
+    /// </summary>
+    public virtual Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
+        IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken) =>
+        Task.FromResult(Unknown(packages));
+
+    /// <summary>A result mapping every package to null.</summary>
+    protected static IReadOnlyDictionary<PackageKey, PackageSize?> Unknown(IEnumerable<InstalledPackage> packages)
+    {
+        var result = new Dictionary<PackageKey, PackageSize?>();
+        foreach (var p in packages)
+            result[PackageKey.Of(p)] = null;
+        return result;
+    }
+
+    /// <summary>
+    /// Runs a query and returns the last line that is an absolute path (stderr may be mixed into the output),
+    /// or null when the query fails or prints none.
+    /// </summary>
+    protected static async Task<string?> QueryRootAsync(ICommandRunner runner, string executable,
+        IReadOnlyDictionary<string, string> environment, CancellationToken cancellationToken, params string[] args)
+    {
+        var output = await ProbeAsync(runner, executable, environment, cancellationToken, args);
+        if (!output.Succeeded)
+            return null;
+        return output.Lines.Select(l => l.Trim()).LastOrDefault(l => l.Length > 0 && Path.IsPathRooted(l));
+    }
+
     /// <summary>The command that uninstalls one package.</summary>
     public virtual CommandSpec BuildUninstallStep(AppSettings settings, string executable, InstalledPackage package) =>
         throw new NotSupportedException($"{ShortName} can't uninstall packages.");
