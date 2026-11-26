@@ -22,6 +22,9 @@ internal sealed class FakeRunner : ICommandRunner
     /// <summary>Exit code for a probe (keyed by joined arguments); 0 when absent.</summary>
     public Dictionary<string, int> ProbeExitCodes { get; } = [];
 
+    /// <summary>Probes (keyed by joined arguments) that report a timeout.</summary>
+    public HashSet<string> ProbeTimeouts { get; } = [];
+
     public string? ResolveExecutable(string name) => Installed.Contains(name) ? "/fake/" + name : null;
 
     public async Task<CommandResult> RunAsync(CommandSpec spec, Action<string> onOutput, TimeSpan timeout, CancellationToken ct)
@@ -32,7 +35,9 @@ internal sealed class FakeRunner : ICommandRunner
             var key = string.Join(' ', spec.Arguments);
             if (ProbeAnswers.TryGetValue(key, out var answer))
                 onOutput(answer);
-            return new CommandResult(ProbeExitCodes.GetValueOrDefault(key, 0), TimeSpan.Zero);
+            return ProbeTimeouts.Contains(key)
+                ? new CommandResult(-1, TimeSpan.Zero, TimedOut: true)
+                : new CommandResult(ProbeExitCodes.GetValueOrDefault(key, 0), TimeSpan.Zero);
         }
         Ran.Add(spec);
         OnRun?.Invoke(spec);
@@ -199,6 +204,63 @@ public sealed class EngineTests : IDisposable
         Assert.Equal(Outcome.Cancelled, report!.Outcome);
         Assert.Equal(Outcome.Cancelled, report.Managers[1].Outcome);
         Assert.Single(_runner.Ran);
+    }
+
+    [Fact]
+    public async Task Uninstall_removes_companions_right_after_their_package()
+    {
+        var report = await Engine().UninstallAsync([
+            new("npm", "git", "2.47.1", PackageKind.Package, ["git.install", "git.portable"]),
+            new("npm", "typescript", null, PackageKind.Package)]);
+        Assert.Equal(["Uninstall git", "Uninstall git.install", "Uninstall git.portable", "Uninstall typescript"],
+            report!.Managers.Single().Steps.Select(s => s.Description));
+        Assert.Equal(["git", "git.install", "git.portable", "typescript"], _runner.Ran.Select(s => s.Arguments[^1]));
+    }
+
+    [Fact]
+    public async Task Uninstall_never_runs_a_protected_companion()
+    {
+        await Engine().UninstallAsync([new("npm", "tool", null, PackageKind.Package, ["corepack"])]);
+        Assert.Equal(["uninstall --global tool"], _runner.Ran.Select(s => string.Join(' ', s.Arguments)));
+    }
+
+    [Fact]
+    public async Task Uninstall_calls_on_started_before_the_first_log_line()
+    {
+        var events = new List<string>();
+        var engine = Engine();
+        engine.Output += line => { lock (events) events.Add("output"); };
+        await engine.UninstallAsync([new("npm", "typescript", null, PackageKind.Package)], () => { lock (events) events.Add("started"); });
+        Assert.Equal("started", events[0]);
+        Assert.Equal(1, events.Count(e => e == "started"));
+    }
+
+    [Fact]
+    public async Task Uninstall_does_not_call_on_started_when_another_run_is_in_progress()
+    {
+        _runner.Gate = new();
+        var engine = Engine();
+        var running = engine.RunAsync(RunTrigger.Manual);
+        var started = false;
+        Assert.Null(await engine.UninstallAsync([new("npm", "typescript", null, PackageKind.Package)], () => started = true));
+        _runner.Gate.SetResult();
+        await running;
+        Assert.False(started);
+    }
+
+    [Fact]
+    public async Task A_new_engine_ignores_a_newest_uninstall_run_for_last_run()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero));
+        var maintenance = await Engine(time).RunAsync(RunTrigger.Scheduled);
+        time.Advance(TimeSpan.FromHours(1));
+        await Engine(time).UninstallAsync([new("npm", "typescript", null, PackageKind.Package)]);
+        Assert.Equal(RunTrigger.Uninstall, _history.Latest!.Trigger);
+
+        var fresh = Engine(time);
+        Assert.NotNull(fresh.Status.LastRun);
+        Assert.Equal(RunTrigger.Scheduled, fresh.Status.LastRun!.Trigger);
+        Assert.Equal(maintenance!.StartedAt, fresh.Status.LastRun.StartedAt);
     }
 
     [Fact]

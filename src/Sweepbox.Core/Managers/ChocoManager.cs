@@ -44,13 +44,13 @@ public sealed class ChocoManager : PackageManager
         var env = new Dictionary<string, string>();
         // Chocolatey 1.x's `list` queries the remote feed unless told otherwise, so require 2.x.
         var version = await ProbeAsync(runner, executable, env, cancellationToken, "--version");
-        if (version.ExitCode != 0)
+        if (!version.Succeeded)
             return ListFailed("choco --version", version);
         if (ParseMajorVersion(version.Lines) is not >= 2)
             return new ManagerInventory(Id, DisplayName, [], "Chocolatey 2 or later is needed to list packages");
 
         var list = await ProbeAsync(runner, executable, env, cancellationToken, "list", "--limit-output");
-        return list.ExitCode != 0
+        return !list.Succeeded
             ? ListFailed("choco list --limit-output", list)
             : new ManagerInventory(Id, DisplayName, ParseList(list.Lines), null);
     }
@@ -78,8 +78,9 @@ public sealed class ChocoManager : PackageManager
     }
 
     /// <summary>
-    /// Parses <c>choco list --limit-output</c> ("name|version"). Hides Chocolatey itself and
-    /// "X.install"/"X.portable" variants whose plain "X" package is also listed.
+    /// Parses <c>choco list --limit-output</c> ("name|version"). Hides Chocolatey itself, and hides
+    /// "X.install"/"X.portable" variants whose plain "X" package is also listed: they become X's companions
+    /// (as listed), so uninstalling X removes them too.
     /// </summary>
     internal static IReadOnlyList<InstalledPackage> ParseList(IEnumerable<string> lines)
     {
@@ -87,18 +88,25 @@ public sealed class ChocoManager : PackageManager
             .Where(parts => parts.Length == 2 && parts[0].Length > 0)
             .ToList();
         var names = new HashSet<string>(all.Select(p => p[0]), StringComparer.OrdinalIgnoreCase);
+        var companions = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var parts in all)
+            if (BaseOfListedVariant(parts[0], names) is { } baseName)
+                (companions.TryGetValue(baseName, out var list) ? list : companions[baseName] = []).Add(parts[0]);
+
         return
         [
-            .. all.Where(parts => !IsProtectedName(parts[0]) && !IsVariantOfListed(parts[0], names))
-                .Select(parts => new InstalledPackage("choco", parts[0], parts[1].Length > 0 ? parts[1] : null, PackageKind.Package)),
+            .. all.Where(parts => !IsProtectedName(parts[0]) && BaseOfListedVariant(parts[0], names) is null)
+                .Select(parts => new InstalledPackage("choco", parts[0], parts[1].Length > 0 ? parts[1] : null, PackageKind.Package,
+                    companions.GetValueOrDefault(parts[0]))),
         ];
     }
 
-    private static bool IsVariantOfListed(string name, HashSet<string> names)
+    /// <summary>"X" for an "X.install"/"X.portable" name whose plain "X" is also listed; otherwise null.</summary>
+    private static string? BaseOfListedVariant(string name, HashSet<string> names)
     {
         foreach (var suffix in new[] { ".install", ".portable" })
             if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && names.Contains(name[..^suffix.Length]))
-                return true;
-        return false;
+                return name[..^suffix.Length];
+        return null;
     }
 }

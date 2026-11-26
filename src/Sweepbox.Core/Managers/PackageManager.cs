@@ -41,12 +41,19 @@ public abstract class PackageManager
     /// <summary>True for packages that must not be offered for uninstall.</summary>
     public virtual bool IsProtected(string packageName) => false;
 
-    protected sealed record ProbeOutput(int ExitCode, IReadOnlyList<string> Lines);
+    /// <summary>How long a listing probe may take.</summary>
+    private static readonly TimeSpan ListTimeout = TimeSpan.FromSeconds(60);
 
-    /// <summary>Runs a quick query command and returns its exit code and output lines.</summary>
+    protected sealed record ProbeOutput(CommandResult Result, IReadOnlyList<string> Lines)
+    {
+        public int ExitCode => Result.ExitCode;
+        public bool Succeeded => Result.Success;
+    }
+
+    /// <summary>Runs a quick query command and returns its result and output lines.</summary>
     protected static async Task<ProbeOutput> ProbeAsync(ICommandRunner runner, string executable,
         IReadOnlyDictionary<string, string> environment, CancellationToken cancellationToken, params string[] args) =>
-        await ProbeAsync(runner, executable, environment, TimeSpan.FromSeconds(60), cancellationToken, args);
+        await ProbeAsync(runner, executable, environment, ListTimeout, cancellationToken, args);
 
     private static async Task<ProbeOutput> ProbeAsync(ICommandRunner runner, string executable,
         IReadOnlyDictionary<string, string> environment, TimeSpan timeout, CancellationToken cancellationToken, string[] args)
@@ -54,11 +61,22 @@ public abstract class PackageManager
         var lines = new List<string>();
         var spec = new CommandSpec("Query " + string.Join(' ', args), executable, args) { Environment = environment, IsProbe = true };
         var result = await runner.RunAsync(spec, chunk => lines.AddRange(chunk.Split('\n')), timeout, cancellationToken);
-        return new ProbeOutput(result.ExitCode, lines);
+        return new ProbeOutput(result, lines);
     }
 
-    protected ManagerInventory ListFailed(string command, ProbeOutput output) =>
-        new(Id, DisplayName, [], $"Couldn't list {ShortName} packages: \"{command}\" failed (exit {output.ExitCode}).");
+    /// <summary>An inventory with the given packages (usually none) and an error saying why listing failed.</summary>
+    protected ManagerInventory ListFailed(string command, ProbeOutput output, IReadOnlyList<InstalledPackage>? packages = null)
+    {
+        var reason = output.Result.TimedOut
+            ? $" (timed out after {ListTimeout.TotalSeconds:0} s)."
+            : $" (exit {output.ExitCode})" + (LastLine(output) is { } last ? ": " + last : "") + ".";
+        System.Diagnostics.Trace.WriteLine(
+            $"{ShortName} listing failed: {command}{reason}{Environment.NewLine}{string.Join(Environment.NewLine, output.Lines)}");
+        return new(Id, DisplayName, packages ?? [], $"Couldn't list {ShortName} packages: \"{command}\" failed{reason}");
+
+        static string? LastLine(ProbeOutput output) =>
+            output.Lines.Select(l => l.Trim()).LastOrDefault(l => l.Length > 0) ?? output.Result.Error;
+    }
 
     /// <summary>Runs a quick query command (e.g. <c>brew --cache</c>) and returns its last line if it is an absolute path.</summary>
     protected static async Task<string?> QueryPathAsync(ICommandRunner runner, string executable,

@@ -60,9 +60,13 @@ public sealed class MaintenanceEngine
 
     /// <summary>
     /// Uninstalls the given packages, one step each, through the same runner, log and report as maintenance.
-    /// Protected packages are never run. Returns null if a run is already in progress.
+    /// Each package's companions get their own step right after it. Protected packages are never run.
+    /// Returns null if a run is already in progress.
     /// </summary>
-    public Task<RunReport?> UninstallAsync(IReadOnlyList<InstalledPackage> packages)
+    /// <param name="onStarted">
+    /// Called once this run has been accepted, before its first log line; not called when another run is in progress.
+    /// </param>
+    public Task<RunReport?> UninstallAsync(IReadOnlyList<InstalledPackage> packages, Action? onStarted = null)
     {
         if (packages.Count == 0)
             throw new ArgumentException("Pick at least one package to uninstall.", nameof(packages));
@@ -70,16 +74,21 @@ public sealed class MaintenanceEngine
         return ExecuteAsync(
             RunTrigger.Uninstall,
             _ => _managers.Where(m => m.IsSupportedOnThisOS && Removable(m).Any()),
-            (m, s, exe) => Removable(m).Select(p => m.BuildUninstallStep(s, exe, p)).ToList());
+            (m, s, exe) => Removable(m).Select(p => m.BuildUninstallStep(s, exe, p)).ToList(),
+            onStarted);
 
         IEnumerable<InstalledPackage> Removable(PackageManager m) =>
-            packages.Where(p => p.ManagerId == m.Id && !m.IsProtected(p.Name));
+            packages.Where(p => p.ManagerId == m.Id)
+                .SelectMany(p => (IEnumerable<InstalledPackage>)
+                    [p, .. (p.Companions ?? []).Select(c => new InstalledPackage(p.ManagerId, c, null, p.Kind))])
+                .Where(p => !m.IsProtected(p.Name));
     }
 
     private async Task<RunReport?> ExecuteAsync(
         RunTrigger trigger,
         Func<AppSettings, IEnumerable<PackageManager>> selectManagers,
-        Func<PackageManager, AppSettings, string, IReadOnlyList<CommandSpec>> buildSteps)
+        Func<PackageManager, AppSettings, string, IReadOnlyList<CommandSpec>> buildSteps,
+        Action? onStarted = null)
     {
         if (!await _gate.WaitAsync(0))
             return null;
@@ -104,6 +113,7 @@ public sealed class MaintenanceEngine
                 Output?.Invoke(stamped);
             }
 
+            onStarted?.Invoke();
             SetStatus(true, null, "Preparing…");
             Write($"=== {trigger} run started {report.StartedAt:yyyy-MM-dd HH:mm:ss} ===");
             var runner = await _runnerFactory(settings);

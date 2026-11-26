@@ -41,6 +41,31 @@ public sealed class InventoryTests
     }
 
     [Fact]
+    public void Brew_parsing_ignores_warnings_and_errors_mixed_into_the_output()
+    {
+        var casks = BrewManager.ParseCasks([
+            "Warning: Unexpected method 'appcast' called on Cask foo.", "zoom 6.2.11",
+            "Error: Cask 'bar' is unreadable: wrong number of arguments", "google-chrome 131.0"]);
+        Assert.Equal(["zoom", "google-chrome"], casks.Select(p => p.Name));
+
+        var formulae = BrewManager.ParseFormulae(
+            ["Warning: some leaves warning", "wget", "molsted/tap/sweeptool", "Error: something broke"],
+            ["Warning: Unexpected method 'appcast' called on Cask foo.", "wget 1.25.0", "sweeptool 0.3", "Error: x 1"]);
+        Assert.Equal([("wget", "1.25.0"), ("molsted/tap/sweeptool", "0.3")], formulae.Select(p => (p.Name, p.Version)));
+    }
+
+    [Fact]
+    public async Task Brew_keeps_casks_when_the_formula_listing_fails()
+    {
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["list --cask --versions"] = "zoom 6.2.11";
+        runner.ProbeExitCodes["list --formula --versions"] = 1;
+        var inv = await new BrewManager().ListInstalledAsync(runner, "/fake/brew", CancellationToken.None);
+        Assert.Equal(["zoom"], inv.Packages.Select(p => p.Name));
+        Assert.Equal("Couldn't list Homebrew packages: \"brew list --formula --versions\" failed (exit 1).", inv.Error);
+    }
+
+    [Fact]
     public async Task Brew_listing_failure_becomes_an_error_not_an_exception()
     {
         var runner = new FakeRunner();
@@ -81,7 +106,19 @@ public sealed class InventoryTests
             "7zip.portable|24.9.0", "vcredist140|14.42.34433", "not a package line", ""]);
         Assert.Equal(["7zip.portable", "git", "vcredist140"], p.Select(x => x.Name).OrderBy(n => n));
         Assert.Equal("2.47.1", p.Single(x => x.Name == "git").Version);
+        Assert.Equal(["git.install"], p.Single(x => x.Name == "git").Companions!);
+        Assert.Null(p.Single(x => x.Name == "7zip.portable").Companions);
         Assert.All(p, x => { Assert.Equal("choco", x.ManagerId); Assert.Equal(PackageKind.Package, x.Kind); });
+    }
+
+    [Fact]
+    public void Choco_list_attaches_hidden_variants_as_companions_with_their_listed_casing()
+    {
+        var p = ChocoManager.ParseList(["Bar.Portable|1.0", "bar|1.0", "foo.install|1.0", "baz|1", "baz.install|1", "baz.portable|1"]);
+        Assert.Equal(["bar", "foo.install", "baz"], p.Select(x => x.Name));
+        Assert.Equal(["Bar.Portable"], p[0].Companions!);
+        Assert.Null(p[1].Companions);
+        Assert.Equal(["baz.install", "baz.portable"], p[2].Companions!);
     }
 
     [Theory]
@@ -183,7 +220,29 @@ public sealed class InventoryTests
         runner.ProbeExitCodes["ls --global --depth=0 --json"] = 1;
         var inv = await new NpmManager().ListInstalledAsync(runner, "/fake/npm", CancellationToken.None);
         Assert.Empty(inv.Packages);
-        Assert.Equal("Couldn't list npm packages: \"npm ls --global --depth=0 --json\" failed (exit 1).", inv.Error);
+        Assert.Equal("Couldn't list npm packages: \"npm ls --global --depth=0 --json\" failed (exit 1): npm ERR! something.", inv.Error);
+    }
+
+    [Fact]
+    public async Task Listing_failure_names_the_last_output_line()
+    {
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["--version"] = "2.4.1";
+        runner.ProbeAnswers["list --limit-output"] = "Chocolatey v2.4.1\nError: access denied\n\n";
+        runner.ProbeExitCodes["list --limit-output"] = 2;
+        var inv = await new ChocoManager().ListInstalledAsync(runner, "/fake/choco", CancellationToken.None);
+        Assert.Equal("Couldn't list Chocolatey packages: \"choco list --limit-output\" failed (exit 2): Error: access denied.", inv.Error);
+    }
+
+    [Fact]
+    public async Task Listing_timeout_says_so()
+    {
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["list --cask --versions"] = "zoom 6.2.11";
+        runner.ProbeTimeouts.Add("list --cask --versions");
+        var inv = await new BrewManager().ListInstalledAsync(runner, "/fake/brew", CancellationToken.None);
+        Assert.Empty(inv.Packages);
+        Assert.Equal("Couldn't list Homebrew packages: \"brew list --cask --versions\" failed (timed out after 60 s).", inv.Error);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Sweepbox.Core.Running;
 using Sweepbox.Core.Settings;
 
@@ -61,21 +62,25 @@ public sealed class BrewManager : PackageManager
         return locations;
     }
 
+    /// <summary>
+    /// Casks, then formulae installed on request. If the casks list but the formulae don't, the casks are
+    /// returned with the error (a partial inventory).
+    /// </summary>
     public override async Task<ManagerInventory> ListInstalledAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken)
     {
-        string[] caskArgs = ["list", "--cask", "--versions"];
-        string[] leafArgs = ["leaves", "--installed-on-request"];
-        string[] formulaArgs = ["list", "--formula", "--versions"];
-        var outputs = new List<ProbeOutput>();
-        foreach (var args in new[] { caskArgs, leafArgs, formulaArgs })
-        {
-            var output = await ProbeAsync(runner, executable, Env, cancellationToken, args);
-            if (output.ExitCode != 0)
-                return ListFailed("brew " + string.Join(' ', args), output);
-            outputs.Add(output);
-        }
-        return new ManagerInventory(Id, DisplayName,
-            [.. ParseCasks(outputs[0].Lines), .. ParseFormulae(outputs[1].Lines, outputs[2].Lines)], null);
+        var casks = await ProbeAsync(runner, executable, Env, cancellationToken, "list", "--cask", "--versions");
+        if (!casks.Succeeded)
+            return ListFailed("brew list --cask --versions", casks);
+        var caskPackages = ParseCasks(casks.Lines);
+
+        var leaves = await ProbeAsync(runner, executable, Env, cancellationToken, "leaves", "--installed-on-request");
+        if (!leaves.Succeeded)
+            return ListFailed("brew leaves --installed-on-request", leaves, caskPackages);
+        var versions = await ProbeAsync(runner, executable, Env, cancellationToken, "list", "--formula", "--versions");
+        if (!versions.Succeeded)
+            return ListFailed("brew list --formula --versions", versions, caskPackages);
+
+        return new ManagerInventory(Id, DisplayName, [.. caskPackages, .. ParseFormulae(leaves.Lines, versions.Lines)], null);
     }
 
     public override CommandSpec BuildUninstallStep(AppSettings settings, string executable, InstalledPackage package)
@@ -86,11 +91,21 @@ public sealed class BrewManager : PackageManager
         return new CommandSpec($"Uninstall {package.Name}", executable, ["uninstall", kind, package.Name]) { Environment = env };
     }
 
+    /// <summary>
+    /// A package name, optionally tap-qualified ("user/tap/name"). Homebrew merges warnings and errors into
+    /// the output, and lines such as "Warning: …" must not become packages.
+    /// </summary>
+    private static readonly Regex PackageName = new(@"^[A-Za-z0-9@._+-]+(/[A-Za-z0-9@._+-]+){0,2}$", RegexOptions.CultureInvariant);
+
+    /// <summary>Splits each line into words and keeps lines whose first word is a package name.</summary>
+    private static IEnumerable<string[]> PackageLines(IEnumerable<string> lines) =>
+        lines.Select(l => l.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Where(parts => parts.Length > 0 && PackageName.IsMatch(parts[0]));
+
     /// <summary>Parses <c>brew list --cask --versions</c>: "name v1 v2", newest last.</summary>
     internal static IReadOnlyList<InstalledPackage> ParseCasks(IEnumerable<string> lines) =>
     [
-        .. lines.Select(l => l.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            .Where(parts => parts.Length > 0)
+        .. PackageLines(lines)
             .Select(parts => new InstalledPackage("brew", parts[0], parts.Length > 1 ? parts[^1] : null, PackageKind.Cask)),
     ];
 
@@ -98,12 +113,11 @@ public sealed class BrewManager : PackageManager
     internal static IReadOnlyList<InstalledPackage> ParseFormulae(IEnumerable<string> leaves, IEnumerable<string> versionLines)
     {
         var versions = new Dictionary<string, string?>();
-        foreach (var parts in versionLines.Select(l => l.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)))
-            if (parts.Length > 0)
-                versions[parts[0]] = parts.Length > 1 ? parts[^1] : null;
+        foreach (var parts in PackageLines(versionLines))
+            versions[parts[0]] = parts.Length > 1 ? parts[^1] : null;
         return
         [
-            .. leaves.Select(l => l.Trim()).Where(l => l.Length > 0)
+            .. PackageLines(leaves).Select(parts => parts[0])
                 .Select(name => new InstalledPackage("brew", name, versions.GetValueOrDefault(name[(name.LastIndexOf('/') + 1)..]), PackageKind.Formula)),
         ];
     }
