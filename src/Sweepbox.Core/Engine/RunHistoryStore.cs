@@ -23,6 +23,12 @@ public sealed class RunHistoryStore(string path, int maxEntries = 50)
         get { lock (_lock) return Load().LastOrDefault(); }
     }
 
+    /// <summary>The newest run that wasn't an uninstall; this is what the schedule and the Overview follow.</summary>
+    public RunReport? LatestMaintenance
+    {
+        get { lock (_lock) return Load().LastOrDefault(r => r.Trigger != RunTrigger.Uninstall); }
+    }
+
     public void Add(RunReport report)
     {
         lock (_lock)

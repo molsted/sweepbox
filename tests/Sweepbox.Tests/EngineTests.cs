@@ -137,6 +137,77 @@ public sealed class EngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Uninstall_runs_one_step_per_package_and_continues_after_a_failure()
+    {
+        _runner.ExitCode = s => s.Arguments.Contains("zoom") ? 1 : 0;
+        var report = await Engine().UninstallAsync([
+            new("brew", "zoom", "6.2.11", PackageKind.Cask), new("brew", "wget", "1.25.0", PackageKind.Formula),
+            new("npm", "typescript", "5.6.3", PackageKind.Package)]);
+        Assert.Equal(RunTrigger.Uninstall, report!.Trigger);
+        Assert.Equal(["Uninstall zoom", "Uninstall wget"], report.Managers[0].Steps.Select(s => s.Description));
+        Assert.Equal(Outcome.Failed, report.Managers[0].Outcome);
+        Assert.Equal(Outcome.Succeeded, report.Managers[1].Outcome);
+        Assert.Null(report.BytesFreed);
+        Assert.Equal(3, _runner.Ran.Count);
+    }
+
+    [Fact]
+    public async Task Uninstall_returns_null_while_another_run_is_in_progress()
+    {
+        _runner.Gate = new();
+        var engine = Engine();
+        var running = engine.RunAsync(RunTrigger.Manual);
+        Assert.Null(await engine.UninstallAsync([new("npm", "typescript", null, PackageKind.Package)]));
+        _runner.Gate.SetResult();
+        await running;
+    }
+
+    [Fact]
+    public async Task Uninstall_never_runs_protected_packages()
+    {
+        await Engine().UninstallAsync([new("npm", "npm", null, PackageKind.Package), new("npm", "typescript", null, PackageKind.Package)]);
+        Assert.Equal(["uninstall --global typescript"], _runner.Ran.Select(s => string.Join(' ', s.Arguments)));
+    }
+
+    [Fact]
+    public async Task Uninstall_does_not_replace_last_run_or_move_the_schedule()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero));
+        var engine = Engine(time);
+        var maintenance = await engine.RunAsync(RunTrigger.Scheduled);
+        time.Advance(TimeSpan.FromHours(5));
+        await engine.UninstallAsync([new("npm", "typescript", null, PackageKind.Package)]);
+        Assert.Same(maintenance, engine.Status.LastRun);
+        Assert.Equal(maintenance!.StartedAt, _history.LatestMaintenance!.StartedAt);
+        Assert.Equal(RunTrigger.Uninstall, _history.Latest!.Trigger);
+        var scheduler = new Scheduler(engine, () => _settings, _history, time);
+        Assert.Equal(maintenance.StartedAt + TimeSpan.FromHours(24), scheduler.NextRunAt);
+    }
+
+    [Fact]
+    public async Task Cancelling_an_uninstall_marks_remaining_managers_cancelled()
+    {
+        _runner.Gate = new TaskCompletionSource();
+        var engine = Engine();
+
+        var running = engine.UninstallAsync([
+            new("brew", "wget", null, PackageKind.Formula), new("npm", "typescript", null, PackageKind.Package)]);
+        await WaitUntil(() => engine.Status.IsRunning && _runner.Ran.Count == 1);
+
+        engine.Cancel();
+        var report = await running;
+        Assert.Equal(Outcome.Cancelled, report!.Outcome);
+        Assert.Equal(Outcome.Cancelled, report.Managers[1].Outcome);
+        Assert.Single(_runner.Ran);
+    }
+
+    [Fact]
+    public async Task Uninstall_rejects_an_empty_list()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => Engine().UninstallAsync([]));
+    }
+
+    [Fact]
     public async Task Scheduler_waits_for_startup_delay_then_interval()
     {
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero));

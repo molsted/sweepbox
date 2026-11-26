@@ -4,6 +4,7 @@ public enum RunTrigger
 {
     Scheduled,
     Manual,
+    Uninstall,
 }
 
 public enum Outcome

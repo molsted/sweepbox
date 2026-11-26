@@ -46,7 +46,7 @@ public sealed class Scheduler : IDisposable
             if (!settings.ScheduleEnabled || Paused)
                 return null;
             return ComputeNextRun(
-                _history.Latest?.StartedAt,
+                _history.LatestMaintenance?.StartedAt,
                 TimeSpan.FromHours(settings.IntervalHours),
                 _appStartedAt,
                 TimeSpan.FromMinutes(settings.StartupDelayMinutes));
