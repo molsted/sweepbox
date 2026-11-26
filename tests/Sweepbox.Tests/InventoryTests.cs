@@ -380,16 +380,25 @@ public sealed class InventoryTests
     }
 
     [Fact]
-    public async Task Measure_skips_empty_errored_and_unmatched_inventories_and_nulls_unresolvable_ones()
+    public async Task Measure_skips_empty_and_unmatched_inventories_and_nulls_unresolvable_ones()
     {
         var runner = new FakeRunner();
         runner.Installed.Remove("brew");
         var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
-        var errored = new ManagerInventory("a", "a", [Pkg("a", "x")], "broken");
+        var emptyErrored = new ManagerInventory("a", "a", [], "broken");
         await InventoryFor(runner, new SizedManager("a", 5), new ThrowingManager()).MeasureAsync(
-            [Inv("a"), errored, Inv("nobody", "q"), Inv("boom", "gone")], reports.Add, CancellationToken.None);
+            [Inv("a"), emptyErrored, Inv("nobody", "q"), Inv("boom", "gone")], reports.Add, CancellationToken.None);
         var only = Assert.Single(reports);
         Assert.Null(Assert.Single(only).Value);
+    }
+
+    [Fact]
+    public async Task Measure_measures_an_errored_inventory_that_still_has_packages()
+    {
+        var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
+        var partial = new ManagerInventory("a", "a", [Pkg("a", "x")], "formula listing failed");
+        await InventoryFor(new FakeRunner(), new SizedManager("a", 5)).MeasureAsync([partial], reports.Add, CancellationToken.None);
+        Assert.Equal(5, Assert.Single(Assert.Single(reports)).Value!.Bytes);
     }
 
     [Fact]

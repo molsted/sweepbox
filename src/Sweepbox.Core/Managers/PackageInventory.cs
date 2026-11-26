@@ -50,7 +50,7 @@ public sealed class PackageInventory(
         var runner = await runnerFactory(settings());
         foreach (var inventory in inventories)
         {
-            if (inventory.Packages.Count == 0 || inventory.Error is not null)
+            if (inventory.Packages.Count == 0)
                 continue;
             if (managers.FirstOrDefault(x => x.Id == inventory.ManagerId) is not { } m)
                 continue;
