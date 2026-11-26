@@ -4,10 +4,13 @@ namespace Sweepbox.Desktop.Services;
 
 public static class Format
 {
+    /// <summary>The clock "Today"/"in 3 h" is relative to. Only tools/Screenshots replaces it, to render a fixed moment.</summary>
+    public static TimeProvider Clock { get; set; } = TimeProvider.System;
+
     public static string When(DateTimeOffset time)
     {
         var local = time.ToLocalTime();
-        var today = DateTime.Today;
+        var today = Clock.GetLocalNow().Date;
         var day = local.Date == today ? "Today"
             : local.Date == today.AddDays(-1) ? "Yesterday"
             : local.Date == today.AddDays(1) ? "Tomorrow"
@@ -17,7 +20,7 @@ public static class Format
 
     public static string Relative(DateTimeOffset time)
     {
-        var delta = time - DateTimeOffset.Now;
+        var delta = time - Clock.GetUtcNow();
         if (delta <= TimeSpan.FromMinutes(1))
             return "any moment";
         if (delta < TimeSpan.FromHours(1))
