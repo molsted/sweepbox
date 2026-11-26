@@ -7,7 +7,8 @@ namespace Sweepbox.Desktop.Services;
 
 /// <summary>
 /// SparkleUpdater with a real auto-install on macOS: the release zip holds the new .app bundle;
-/// it replaces the running one in place and relaunches. Windows keeps the installer flow.
+/// it replaces the running one in place, quits, and a helper opens the new copy once we have exited.
+/// Windows keeps the installer flow.
 /// </summary>
 public sealed class SweepboxSparkleUpdater : SparkleUpdater
 {
@@ -52,14 +53,14 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
                 }
 
                 // Replacing the bundle of a running app is safe: the binary keeps executing
-                // from its deleted inode until we quit, right after relaunching the new copy.
+                // from its deleted inode until we quit.
                 Directory.Delete(running, recursive: true);
                 if (!Run("cp", $"-R \"{bundle}\" \"{running}\""))
                 {
                     Trace.WriteLine("Update: could not copy the new app bundle into place");
                     return;
                 }
-                Run("open", $"-a \"{running}\"");
+                StartRelaunchAfterExit(running);
                 _quit();
             }
             catch (Exception ex)
@@ -72,6 +73,25 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
                 try { File.Delete(downloadFilePath); } catch (IOException) { }
             }
         });
+    }
+
+    /// <summary>
+    /// Opens the new bundle once this process has exited. Opening it while we still run would only
+    /// bring the old instance to the front (LaunchServices reuses a running app with the same id),
+    /// and a second copy would stop at the single-instance lock. The shell outlives us; it gives up
+    /// waiting after 60 s and opens the app anyway.
+    /// </summary>
+    private static void StartRelaunchAfterExit(string appBundle)
+    {
+        const string script = """
+            i=0
+            while kill -0 "$1" 2>/dev/null && [ "$i" -lt 300 ]; do sleep 0.2; i=$((i+1)); done
+            exec /usr/bin/open -n "$2"
+            """;
+        var psi = new ProcessStartInfo("/bin/sh") { UseShellExecute = false, CreateNoWindow = true };
+        foreach (var arg in new[] { "-c", script, "sweepbox-relaunch", Environment.ProcessId.ToString(), appBundle })
+            psi.ArgumentList.Add(arg);
+        Process.Start(psi)?.Dispose();
     }
 
     /// <summary>.../Sweepbox.app/Contents/MacOS/Sweepbox -> .../Sweepbox.app</summary>
