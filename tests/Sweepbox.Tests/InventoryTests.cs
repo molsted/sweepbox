@@ -136,5 +136,13 @@ public sealed class InventoryTests
     [InlineData("chocolatey", true)]
     [InlineData("Chocolatey-Windowsupdate.Extension", true)]
     [InlineData("git", false)]
+    [InlineData("chocolateygui", false)]
     public void Choco_protected_names(string name, bool expected) => Assert.Equal(expected, new ChocoManager().IsProtected(name));
+
+    [Fact]
+    public void Choco_list_keeps_lookalikes_and_variants_without_a_base_package()
+    {
+        var p = ChocoManager.ParseList(["chocolateygui|2.1.1", "foo.install|1.0", "bar|1.0", "Bar.Portable|1.0"]);
+        Assert.Equal(["chocolateygui", "foo.install", "bar"], p.Select(x => x.Name));
+    }
 }

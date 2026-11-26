@@ -63,7 +63,10 @@ public sealed class ChocoManager : PackageManager
 
     public override bool IsProtected(string packageName) => IsProtectedName(packageName);
 
-    private static bool IsProtectedName(string name) => name.StartsWith("chocolatey", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Chocolatey itself, and its own "chocolatey-*.extension" packages.</summary>
+    private static bool IsProtectedName(string name) =>
+        name.Equals("chocolatey", StringComparison.OrdinalIgnoreCase) ||
+        (name.StartsWith("chocolatey-", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".extension", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Major version from the first non-blank line, e.g. "2.4.1" gives 2; null if it isn't a version.</summary>
     internal static int? ParseMajorVersion(IEnumerable<string> lines)
@@ -74,12 +77,28 @@ public sealed class ChocoManager : PackageManager
         return int.TryParse(head, out var major) ? major : null;
     }
 
-    /// <summary>Parses <c>choco list --limit-output</c> ("name|version"), hiding Chocolatey itself and ".install" variants.</summary>
-    internal static IReadOnlyList<InstalledPackage> ParseList(IEnumerable<string> lines) =>
-    [
-        .. lines.Select(l => l.Trim().Split('|'))
+    /// <summary>
+    /// Parses <c>choco list --limit-output</c> ("name|version"). Hides Chocolatey itself and
+    /// "X.install"/"X.portable" variants whose plain "X" package is also listed.
+    /// </summary>
+    internal static IReadOnlyList<InstalledPackage> ParseList(IEnumerable<string> lines)
+    {
+        var all = lines.Select(l => l.Trim().Split('|'))
             .Where(parts => parts.Length == 2 && parts[0].Length > 0)
-            .Where(parts => !IsProtectedName(parts[0]) && !parts[0].EndsWith(".install", StringComparison.OrdinalIgnoreCase))
-            .Select(parts => new InstalledPackage("choco", parts[0], parts[1].Length > 0 ? parts[1] : null, PackageKind.Package)),
-    ];
+            .ToList();
+        var names = new HashSet<string>(all.Select(p => p[0]), StringComparer.OrdinalIgnoreCase);
+        return
+        [
+            .. all.Where(parts => !IsProtectedName(parts[0]) && !IsVariantOfListed(parts[0], names))
+                .Select(parts => new InstalledPackage("choco", parts[0], parts[1].Length > 0 ? parts[1] : null, PackageKind.Package)),
+        ];
+    }
+
+    private static bool IsVariantOfListed(string name, HashSet<string> names)
+    {
+        foreach (var suffix in new[] { ".install", ".portable" })
+            if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && names.Contains(name[..^suffix.Length]))
+                return true;
+        return false;
+    }
 }
