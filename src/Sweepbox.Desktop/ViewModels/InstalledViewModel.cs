@@ -126,6 +126,8 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource? _measureCts;
     // Incremented whenever Groups is rebuilt; size results for an older list are dropped.
     private int _generation;
+    // The inventories the current Groups were built from, so measuring can restart for the same list.
+    private IReadOnlyList<ManagerInventory>? _inventories;
     private Task? _loadTask;
     private bool _loadDeferred;
     private bool _disposed;
@@ -259,6 +261,10 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         {
             StatusMessage = $"Could not uninstall: {ex.Message}";
             _showInstalled?.Invoke();
+            // No run completed, so no reload will remeasure: measure the list shown again (unless a listing is
+            // already under way or a run is busy: both end in a listing that measures).
+            if (_inventories is { } inventories && _loadCts is null && !IsBusy)
+                StartMeasuring(inventories);
         }
     }
 
@@ -275,7 +281,11 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
     partial void OnIsBusyChanged(bool value)
     {
         if (value)
+        {
+            // Measuring probes the package managers too; the reload after the run remeasures.
+            CancelMeasuring();
             StatusMessage = BusyText;
+        }
         else if (StatusMessage == BusyText)
             StatusMessage = null;
     }
@@ -295,6 +305,7 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
             if (!cts.IsCancellationRequested)
             {
                 BuildGroups(inventories, keepTicks);
+                _inventories = inventories;
                 StartMeasuring(inventories);
             }
         }
@@ -364,7 +375,7 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         {
             // Measuring walks the disk; keep it off the UI thread. Results are applied on the UI thread.
             await Task.Run(() => _services.Inventory.MeasureAsync(inventories,
-                sizes => Dispatcher.UIThread.Post(() => ApplySizes(sizes, generation)), cts.Token));
+                sizes => Dispatcher.UIThread.Post(() => ApplySizes(sizes, generation, cts)), cts.Token));
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -390,9 +401,11 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void ApplySizes(IReadOnlyDictionary<PackageKey, PackageSize?> sizes, int generation)
+    private void ApplySizes(IReadOnlyDictionary<PackageKey, PackageSize?> sizes, int generation, CancellationTokenSource cts)
     {
-        if (_disposed || generation != _generation)
+        // A cancelled measurement may have posted results made from cancelled (failed-looking) probes: drop them.
+        // Reading IsCancellationRequested is safe even after the CTS is disposed.
+        if (_disposed || generation != _generation || cts.IsCancellationRequested)
             return;
         foreach (var group in Groups)
         {
