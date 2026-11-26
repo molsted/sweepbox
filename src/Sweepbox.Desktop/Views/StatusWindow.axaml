@@ -43,7 +43,7 @@
             </DockPanel>
         </Border>
 
-        <TabControl Margin="12,6,12,0">
+        <TabControl Margin="12,6,12,0" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
             <TabItem Header="Overview">
                 <ScrollViewer>
                     <StackPanel Spacing="8" Margin="0,8">
@@ -106,6 +106,60 @@
                         </ItemsControl>
                     </StackPanel>
                 </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Installed">
+                <Panel DataContext="{Binding Installed}">
+                    <DockPanel x:DataType="vm:InstalledViewModel" Margin="0,8">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding RefreshCommand}" Margin="8,0,0,0" />
+                            <TextBox Text="{Binding SearchText}" PlaceholderText="Search" />
+                        </DockPanel>
+
+                        <Button DockPanel.Dock="Bottom" HorizontalAlignment="Right" Margin="0,8,0,0" Classes="accent"
+                                Content="{Binding UninstallLabel}" Command="{Binding UninstallSelectedCommand}" />
+
+                        <StackPanel DockPanel.Dock="Top" Spacing="6">
+                            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}" />
+                            <TextBlock Classes="muted" Text="{Binding StatusMessage}" Margin="0,0,0,6"
+                                       IsVisible="{Binding StatusMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </StackPanel>
+
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{Binding Groups}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PackageGroup">
+                                        <Expander IsExpanded="True" IsVisible="{Binding IsVisible}"
+                                                  HorizontalAlignment="Stretch" Margin="0,0,0,6">
+                                            <Expander.Header>
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    <TextBlock Classes="muted" Text="{Binding Count}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Expander.Header>
+                                            <StackPanel>
+                                                <TextBlock Classes="muted" Text="{Binding Error}" IsVisible="{Binding HasError}"
+                                                           Foreground="{StaticResource FailureBrush}" />
+                                                <ItemsControl ItemsSource="{Binding Items}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:PackageItem">
+                                                            <CheckBox IsChecked="{Binding IsChecked}" IsVisible="{Binding IsVisible}">
+                                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                                    <TextBlock Classes="muted" Text="{Binding Version}" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </CheckBox>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Expander>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Panel>
             </TabItem>
 
             <TabItem Header="Live log">
