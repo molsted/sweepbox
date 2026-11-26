@@ -10,7 +10,7 @@ public static class Notifier
         try
         {
             if (OperatingSystem.IsMacOS())
-                ShowMac(title, message);
+                _ = MacNotifications.Show(title, message);
             else if (OperatingSystem.IsWindows())
                 WindowsNotifications.Show(title, message);
         }
@@ -20,15 +20,12 @@ public static class Notifier
         }
     }
 
-    private static void ShowMac(string title, string message)
-    {
-        var psi = new ProcessStartInfo("/usr/bin/osascript") { UseShellExecute = false, CreateNoWindow = true };
-        psi.ArgumentList.Add("-e");
-        psi.ArgumentList.Add($"display notification {AppleScriptString(message)} with title \"Sweepbox\" subtitle {AppleScriptString(title)}");
-        Process.Start(psi)?.Dispose();
-    }
-
-    private static string AppleScriptString(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+    /// <summary>
+    /// Waits until posted notifications have been handed to the system, or until <paramref name="timeout"/>,
+    /// so a CLI run does not exit before its notification is delivered. Completes at once off macOS.
+    /// </summary>
+    public static Task FlushAsync(TimeSpan timeout) =>
+        OperatingSystem.IsMacOS() ? MacNotifications.WhenIdleAsync(timeout) : Task.CompletedTask;
 
     public static void OpenPath(string path)
     {

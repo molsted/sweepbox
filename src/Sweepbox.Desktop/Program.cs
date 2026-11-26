@@ -108,6 +108,8 @@ internal static partial class Program
     {
         if (OperatingSystem.IsWindows())
             WindowsNotifications.Register();
+        else if (OperatingSystem.IsMacOS())
+            MacNotifications.Initialize(requestPermission: false); // --run never prompts for permission
         var services = new AppServices(paths);
         services.Engine.Output += Console.WriteLine;
         Console.CancelKeyPress += (_, e) =>
@@ -116,6 +118,8 @@ internal static partial class Program
             services.Engine.Cancel();
         };
         var report = services.Engine.RunAsync(RunTrigger.Manual).GetAwaiter().GetResult();
+        // Posting is asynchronous on macOS: give the run's notification up to 5 s to reach the system.
+        Notifier.FlushAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
         return report?.Outcome is Outcome.Succeeded or Outcome.Skipped ? 0 : 1;
     }
 

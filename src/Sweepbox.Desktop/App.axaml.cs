@@ -31,6 +31,8 @@ public partial class App : Application
         {
             if (OperatingSystem.IsWindows())
                 WindowsNotifications.Register();
+            else if (OperatingSystem.IsMacOS())
+                MacNotifications.Initialize(requestPermission: true);
             _services = new AppServices(Paths);
             // Quit can be requested from background threads (the updater installs off the UI thread);
             // disposing the tray icon anywhere but the UI thread hangs on macOS, so always quit there.
