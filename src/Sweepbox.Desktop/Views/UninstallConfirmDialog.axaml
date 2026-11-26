@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sys="using:System"
+        xmlns:views="using:Sweepbox.Desktop.Views"
+        x:Class="Sweepbox.Desktop.Views.UninstallConfirmDialog"
+        x:DataType="views:UninstallConfirmation"
+        Title="Uninstall packages"
+        Icon="/Assets/app-icon.png"
+        Width="440" SizeToContent="Height" CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <Border Classes="header" DockPanel.Dock="Top">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Image Source="/Assets/app-icon.png" Width="40" Height="40" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Classes="h1" Text="Uninstall packages?" />
+                    <TextBlock Text="{Binding Summary}" Opacity="0.9" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Margin="20" Spacing="12">
+            <TextBlock TextWrapping="Wrap" Text="Sweepbox will uninstall:" />
+            <Border Classes="card">
+                <ScrollViewer MaxHeight="220">
+                    <ItemsControl ItemsSource="{Binding Lines}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="sys:String">
+                                <TextBlock Text="{Binding}" Margin="0,1" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+            <ItemsControl ItemsSource="{Binding Notes}" IsVisible="{Binding HasNotes}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sys:String">
+                        <TextBlock Classes="muted" Text="{Binding}" Margin="0,1" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="muted"
+                       Text="The output appears in the Live log. Packages that fail stay installed." />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+                <Button Content="Uninstall" Click="OnUninstall" />
+                <Button Classes="accent" Content="Cancel" Click="OnCancel" IsDefault="True" IsCancel="True" />
+            </StackPanel>
+        </StackPanel>
+    </DockPanel>
+</Window>

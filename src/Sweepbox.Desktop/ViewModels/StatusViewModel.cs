@@ -35,6 +35,8 @@ public partial class StatusViewModel : ViewModelBase, IDisposable
             _log.Append(File.ReadAllText(lastLog));
         _logText = _log.ToString();
 
+        Installed = new InstalledViewModel(services, () => SelectedTab = LogTab, ClearLog, () => SelectedTab = InstalledTab);
+
         services.Engine.Output += OnOutput;
         services.Engine.StatusChanged += OnStatusChanged;
         services.Scheduler.Changed += OnSchedulerChanged;
@@ -44,6 +46,9 @@ public partial class StatusViewModel : ViewModelBase, IDisposable
         _timer.Start();
         Refresh();
     }
+
+    private const int InstalledTab = 1;
+    private const int LogTab = 2;
 
     public ObservableCollection<ManagerRow> Managers { get; } = [];
     public ObservableCollection<HistoryRow> History { get; } = [];
@@ -55,17 +60,27 @@ public partial class StatusViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private string _logText;
     [ObservableProperty] private string? _totalFreed;
 
+    /// <summary>0 = Overview, 1 = Installed, 2 = Live log.</summary>
+    [ObservableProperty] private int _selectedTab;
+
+    public InstalledViewModel Installed { get; }
+
     public string Version { get; } = "Sweepbox v" + (typeof(StatusViewModel).Assembly.GetName().Version?.ToString(3) ?? "?") + "  ·  GPL-3.0";
 
     [RelayCommand(CanExecute = nameof(CanRun))]
     private void RunNow()
+    {
+        ClearLog();
+        _ = _services.RunNowAsync();
+    }
+
+    private void ClearLog()
     {
         lock (_log)
         {
             _log.Clear();
             _logDirty = true;
         }
-        _ = _services.RunNowAsync();
     }
 
     private bool CanRun() => !IsRunning;
@@ -94,6 +109,12 @@ public partial class StatusViewModel : ViewModelBase, IDisposable
     }
 
     partial void OnIsRunningChanged(bool value) => RunNowCommand.NotifyCanExecuteChanged();
+
+    partial void OnSelectedTabChanged(int value)
+    {
+        if (value == InstalledTab)
+            _ = Installed.EnsureLoadedAsync();
+    }
 
     private void OnOutput(string line)
     {
@@ -177,6 +198,7 @@ public partial class StatusViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _timer.Stop();
+        Installed.Dispose();
         _services.Engine.Output -= OnOutput;
         _services.Engine.StatusChanged -= OnStatusChanged;
         _services.Scheduler.Changed -= OnSchedulerChanged;

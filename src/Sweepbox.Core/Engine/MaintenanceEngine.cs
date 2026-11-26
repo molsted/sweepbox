@@ -32,7 +32,7 @@ public sealed class MaintenanceEngine
         _history = history;
         _logDirectory = logDirectory;
         _time = time ?? TimeProvider.System;
-        Status = new EngineStatus(false, null, null, history.Latest);
+        Status = new EngineStatus(false, null, null, history.LatestMaintenance);
     }
 
     public EngineStatus Status { get; private set; }
@@ -51,7 +51,44 @@ public sealed class MaintenanceEngine
 
     /// <summary>Runs maintenance. Returns null if a run is already in progress.</summary>
     /// <param name="onlyManagerIds">Restrict to these managers (they are run even if disabled in settings).</param>
-    public async Task<RunReport?> RunAsync(RunTrigger trigger, IReadOnlyCollection<string>? onlyManagerIds = null)
+    public Task<RunReport?> RunAsync(RunTrigger trigger, IReadOnlyCollection<string>? onlyManagerIds = null) =>
+        ExecuteAsync(
+            trigger,
+            s => _managers.Where(m => m.IsSupportedOnThisOS &&
+                (onlyManagerIds is null ? m.IsEnabled(s) : onlyManagerIds.Contains(m.Id))),
+            (m, s, exe) => m.BuildSteps(s, exe));
+
+    /// <summary>
+    /// Uninstalls the given packages, one step each, through the same runner, log and report as maintenance.
+    /// Each package's companions get their own step right after it. Protected packages are never run.
+    /// Returns null if a run is already in progress.
+    /// </summary>
+    /// <param name="onStarted">
+    /// Called once this run has been accepted, before its first log line; not called when another run is in progress.
+    /// </param>
+    public Task<RunReport?> UninstallAsync(IReadOnlyList<InstalledPackage> packages, Action? onStarted = null)
+    {
+        if (packages.Count == 0)
+            throw new ArgumentException("Pick at least one package to uninstall.", nameof(packages));
+
+        return ExecuteAsync(
+            RunTrigger.Uninstall,
+            _ => _managers.Where(m => m.IsSupportedOnThisOS && Removable(m).Any()),
+            (m, s, exe) => Removable(m).Select(p => m.BuildUninstallStep(s, exe, p)).ToList(),
+            onStarted);
+
+        IEnumerable<InstalledPackage> Removable(PackageManager m) =>
+            packages.Where(p => p.ManagerId == m.Id)
+                .SelectMany(p => (IEnumerable<InstalledPackage>)
+                    [p, .. (p.Companions ?? []).Select(c => new InstalledPackage(p.ManagerId, c, null, p.Kind))])
+                .Where(p => !m.IsProtected(p.Name));
+    }
+
+    private async Task<RunReport?> ExecuteAsync(
+        RunTrigger trigger,
+        Func<AppSettings, IEnumerable<PackageManager>> selectManagers,
+        Func<PackageManager, AppSettings, string, IReadOnlyList<CommandSpec>> buildSteps,
+        Action? onStarted = null)
     {
         if (!await _gate.WaitAsync(0))
             return null;
@@ -76,15 +113,13 @@ public sealed class MaintenanceEngine
                 Output?.Invoke(stamped);
             }
 
+            onStarted?.Invoke();
             SetStatus(true, null, "Preparing…");
             Write($"=== {trigger} run started {report.StartedAt:yyyy-MM-dd HH:mm:ss} ===");
             var runner = await _runnerFactory(settings);
             var timeout = TimeSpan.FromMinutes(settings.StepTimeoutMinutes);
 
-            var selected = _managers.Where(m => m.IsSupportedOnThisOS &&
-                (onlyManagerIds is null ? m.IsEnabled(settings) : onlyManagerIds.Contains(m.Id)));
-
-            foreach (var manager in selected)
+            foreach (var manager in selectManagers(settings))
             {
                 var managerReport = new ManagerReport { Id = manager.Id, DisplayName = manager.DisplayName };
                 report.Managers.Add(managerReport);
@@ -106,7 +141,7 @@ public sealed class MaintenanceEngine
                     continue;
                 }
 
-                var steps = manager.BuildSteps(settings, executable);
+                var steps = buildSteps(manager, settings, executable);
                 if (steps.Count == 0)
                 {
                     managerReport.Outcome = Outcome.Skipped;
@@ -193,7 +228,7 @@ public sealed class MaintenanceEngine
             _history.Add(report);
             _cts.Dispose();
             _cts = null;
-            Status = new EngineStatus(false, null, null, report);
+            Status = new EngineStatus(false, null, null, trigger == RunTrigger.Uninstall ? Status.LastRun : report);
             _gate.Release();
         }
 
