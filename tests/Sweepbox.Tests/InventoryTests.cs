@@ -338,6 +338,84 @@ public sealed class InventoryTests
         Assert.Empty(UninstallNotes.For(_settings, both, isElevated: false));
     }
 
+    private static InstalledPackage Pkg(string manager, string name) => new(manager, name, null, PackageKind.Package);
+
+    private static ManagerInventory Inv(string manager, params string[] names) =>
+        new(manager, manager, names.Select(n => Pkg(manager, n)).ToList(), null);
+
+    [Fact]
+    public async Task Measure_reports_each_manager_separately_in_order()
+    {
+        var runner = new FakeRunner();
+        var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
+        await InventoryFor(runner, new SizedManager("a", 5), new SizedManager("b", 7)).MeasureAsync(
+            [Inv("a", "x"), Inv("b", "y", "z")], reports.Add, CancellationToken.None);
+        Assert.Equal(2, reports.Count);
+        Assert.Equal(5, reports[0][new("a", "x", PackageKind.Package)]!.Bytes);
+        Assert.Equal(2, reports[1].Count);
+        Assert.Equal(7, reports[1][new("b", "z", PackageKind.Package)]!.Bytes);
+    }
+
+    [Fact]
+    public async Task Measure_isolates_a_failing_manager()
+    {
+        var runner = new FakeRunner();
+        var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
+        await InventoryFor(runner, new ThrowingManager(), new SizedManager("a", 5)).MeasureAsync(
+            [Inv("boom", "x"), Inv("a", "y")], reports.Add, CancellationToken.None);
+        Assert.Equal(2, reports.Count);
+        Assert.Null(Assert.Single(reports[0]).Value);
+        Assert.Equal(5, Assert.Single(reports[1]).Value!.Bytes);
+    }
+
+    [Fact]
+    public async Task Measure_propagates_cancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            InventoryFor(new FakeRunner(), new CancelingManager()).MeasureAsync([Inv("boom", "x")], reports.Add, cts.Token));
+        Assert.Empty(reports);
+    }
+
+    [Fact]
+    public async Task Measure_skips_empty_errored_and_unmatched_inventories_and_nulls_unresolvable_ones()
+    {
+        var runner = new FakeRunner();
+        runner.Installed.Remove("brew");
+        var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
+        var errored = new ManagerInventory("a", "a", [Pkg("a", "x")], "broken");
+        await InventoryFor(runner, new SizedManager("a", 5), new ThrowingManager()).MeasureAsync(
+            [Inv("a"), errored, Inv("nobody", "q"), Inv("boom", "gone")], reports.Add, CancellationToken.None);
+        var only = Assert.Single(reports);
+        Assert.Null(Assert.Single(only).Value);
+    }
+
+    [Fact]
+    public async Task Measure_fills_keys_a_manager_left_out_with_null()
+    {
+        var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
+        await InventoryFor(new FakeRunner(), new SizedManager("a", 5, skipLast: true)).MeasureAsync(
+            [Inv("a", "x", "y")], reports.Add, CancellationToken.None);
+        var r = Assert.Single(reports);
+        Assert.Equal(5, r[new("a", "x", PackageKind.Package)]!.Bytes);
+        Assert.True(r.ContainsKey(new("a", "y", PackageKind.Package)));
+        Assert.Null(r[new("a", "y", PackageKind.Package)]);
+    }
+
+    private sealed class SizedManager(string id, long bytes, bool skipLast = false) : ThrowingManager
+    {
+        public override string Id => id;
+        public override Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
+            IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken)
+        {
+            var take = skipLast ? packages.Take(packages.Count - 1) : packages;
+            return Task.FromResult<IReadOnlyDictionary<PackageKey, PackageSize?>>(
+                take.ToDictionary(PackageKey.Of, _ => (PackageSize?)new PackageSize(bytes, false)));
+        }
+    }
+
     private class ThrowingManager : PackageManager
     {
         public override string Id => "boom";
@@ -348,11 +426,17 @@ public sealed class InventoryTests
         public override IReadOnlyList<CommandSpec> BuildSteps(AppSettings settings, string executable) => [];
         public override Task<ManagerInventory> ListInstalledAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("boom");
+        public override Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
+            IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("boom");
     }
 
     private sealed class CancelingManager : ThrowingManager
     {
         public override Task<ManagerInventory> ListInstalledAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken) =>
+            throw new OperationCanceledException(cancellationToken);
+        public override Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
+            IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken) =>
             throw new OperationCanceledException(cancellationToken);
     }
 }
