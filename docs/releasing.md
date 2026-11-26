@@ -51,8 +51,10 @@ scripts/package-macos.sh                      # arm64 + x64
 ARCHS="arm64" scripts/package-macos.sh        # one architecture
 ```
 
+- The script publishes with `-f net10.0`.
+
 - `installer/macos/Info.plist` and `entitlements.plist` define the bundle (`LSUIElement`-style menu bar app).
-- With Xcode 26+, `actool` compiles `installer/macos/AppIcon.icon` (Icon Composer) into `Assets.car`, so macOS 26 shows the icon natively. Without it the `.icns` is used, which macOS 26 shows inside a grey frame. CI selects the newest Xcode.
+- With Xcode 26+, `actool` compiles `installer/macos/AppIcon.icon` (Icon Composer) into `Assets.car`, so macOS 26 shows the icon natively. Without it the `.icns` is used, which macOS 26 shows inside a grey frame. CI selects the newest Xcode. Locally this also needs the Xcode license accepted and `xcode-select` pointing at Xcode.
 - **Signing:** ad-hoc by default. Set `SIGN_IDENTITY="Developer ID Application: …"` to sign, and add `NOTARY_PROFILE=<profile>` (from `xcrun notarytool store-credentials`) to notarize and staple. Release builds are currently **not notarized**, which is why the release notes tell users to right-click → Open the first time.
 
 ## Windows packaging
@@ -61,6 +63,7 @@ ARCHS="arm64" scripts/package-macos.sh        # one architecture
 ./scripts/package-windows.ps1                 # x64 + arm64
 ```
 
+- The script publishes with `-f net10.0-windows10.0.19041.0`. `app-icon.png` is shipped next to `Sweepbox.exe`, because the toast registration points at it.
 - Needs Inno Setup 6 (`winget install JRSoftware.InnoSetup`). The script finds `ISCC.exe` on PATH or in the usual install folders. CI installs it with Chocolatey if it is missing.
 - Set `$env:SIGN_CERT_THUMBPRINT` to Authenticode-sign the exe and the installer with `signtool`.
 

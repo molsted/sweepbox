@@ -114,13 +114,15 @@ JSON uses camelCase and string enums. Missing properties get the C# defaults, so
 | Tray / menu bar | `Tray/TrayController` | Icon state (idle/running/error), the menu, Run Now / Run Only / Cancel / Pause |
 | Windows | `Views/`, `ViewModels/` | MVVM with CommunityToolkit.Mvvm. `SettingsViewModel` edits a working copy of `AppSettings`, and `StatusViewModel` shows history and the live log. Its tabs are Overview, Installed and Live log. `InstalledViewModel` loads the groups on first show, keeps ticks across searches and refreshes after each run |
 | Updates | `Services/AppUpdater`, `Services/SweepboxSparkleUpdater`, `Services/SweepboxUIFactory`, `Updates/` | NetSparkle self-update with Sweepbox-styled dialogs |
-| Helpers | `Services/Notifier`, `Services/Format` | Native notifications, text formatting |
+| Helpers | `Services/Notifier`, `Services/MacNotifications`, `Services/MacObjC`, `Services/WindowsNotifications`, `Services/Format` | `Notifier` is the entry point and calls the platform class. `MacNotifications` posts through `UNUserNotificationCenter` using Objective-C runtime interop (`MacObjC`). `WindowsNotifications` shows WinRT toasts. Text formatting in `Format` |
 
 ### Process model
 
 - **Single instance:** the process holds an exclusive `FileStream` on `.lock` for its whole lifetime. A second instance retries for about 5 seconds before it gives up, because after an in-place update the new process can start while the old one is still exiting. `--run` takes the same lock. `--dry-run` doesn't.
 - **No Dock icon on macOS** (`ShowInDock = false`). The app runs until Quit (`ShutdownMode.OnExplicitShutdown`).
 - **First run:** if `settings.json` doesn't exist, the defaults are saved and the settings window opens. Installed copies (not dev builds in `bin/`) also ask about start at login.
+- **Two targets:** Desktop multi-targets `net10.0` (macOS, and the cross-platform dev build) and `net10.0-windows10.0.19041.0` (Windows; the WinRT toast APIs need it). The installers ship the matching target, so packaging passes `-f`.
+- **Notifications:** on Windows, toasts are shown in-process under the AppUserModelID `dk.sweepbox.desktop`. On every start the app registers it for the current user in `HKCU\Software\Classes\AppUserModelId\dk.sweepbox.desktop` (`DisplayName`, and `IconUri` pointing at `app-icon.png` next to `Sweepbox.exe`), and the uninstaller removes it for the user running it. On macOS, `UNUserNotificationCenter` works only inside an app bundle with an identifier, and macOS accepts the app only when it runs from the Applications folder. The permission is requested once, at the first GUI launch. `--run` never asks, and waits up to 5 seconds for the notification to be delivered before it exits.
 - **CLI on Windows:** the exe is a GUI subsystem app. CLI modes call `AttachConsole(-1)` so the output reaches the calling terminal.
 
 ### Self-update
