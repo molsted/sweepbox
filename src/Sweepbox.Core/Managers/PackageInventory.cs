@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Sweepbox.Core.Running;
 using Sweepbox.Core.Settings;
 
@@ -35,6 +36,67 @@ public sealed class PackageInventory(
             }
         }
 
+        return result;
+    }
+
+    /// <summary>
+    /// Measures each non-empty inventory with its manager, one after another, and calls
+    /// <paramref name="onManagerMeasured"/> once per inventory on the measuring thread. A manager that fails or
+    /// can't be run reports every package as unknown; cancellation propagates.
+    /// </summary>
+    public async Task MeasureAsync(IReadOnlyList<ManagerInventory> inventories,
+        Action<IReadOnlyDictionary<PackageKey, PackageSize?>> onManagerMeasured, CancellationToken cancellationToken)
+    {
+        var runner = await runnerFactory(settings());
+        foreach (var inventory in inventories)
+        {
+            if (inventory.Packages.Count == 0)
+                continue;
+            if (managers.FirstOrDefault(x => x.Id == inventory.ManagerId) is not { } m)
+                continue;
+
+            IReadOnlyDictionary<PackageKey, PackageSize?> measured;
+            if (runner.ResolveExecutable(m.ExecutableName) is not { } executable)
+            {
+                measured = Unknown(inventory.Packages);
+            }
+            else
+            {
+                try
+                {
+                    measured = Complete(await m.MeasureAsync(runner, executable, inventory.Packages, cancellationToken), inventory.Packages);
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"Measuring {m.DisplayName} sizes failed: {ex.Message}");
+                    measured = Unknown(inventory.Packages);
+                }
+            }
+
+            onManagerMeasured(measured);
+        }
+    }
+
+    private static Dictionary<PackageKey, PackageSize?> Unknown(IEnumerable<InstalledPackage> packages)
+    {
+        var result = new Dictionary<PackageKey, PackageSize?>();
+        foreach (var p in packages)
+            result[PackageKey.Of(p)] = null;
+        return result;
+    }
+
+    private static Dictionary<PackageKey, PackageSize?> Complete(IReadOnlyDictionary<PackageKey, PackageSize?> measured,
+        IEnumerable<InstalledPackage> packages)
+    {
+        var result = Unknown(packages);
+        foreach (var key in result.Keys.ToList())
+            if (measured.TryGetValue(key, out var size))
+                result[key] = size;
         return result;
     }
 }

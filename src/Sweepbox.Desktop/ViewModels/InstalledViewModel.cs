@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sweepbox.Core.Engine;
 using Sweepbox.Core.Managers;
+using Sweepbox.Core.Running;
 using Sweepbox.Desktop.Services;
 
 namespace Sweepbox.Desktop.ViewModels;
@@ -26,21 +28,39 @@ public partial class PackageItem : ViewModelBase
     [ObservableProperty] private bool _isChecked;
     [ObservableProperty] private bool _isVisible = true;
 
+    /// <summary>The measured size; null means unknown. Meaningful only once <see cref="SizeKnown"/> is true.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SizeText))]
+    private PackageSize? _size;
+
+    /// <summary>False until this package's manager has reported its sizes.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SizeText))]
+    private bool _sizeKnown;
+
+    /// <summary>Empty until reported; "–" when unknown; "≈ 1.2 GB" for an estimate; otherwise "1.2 GB".</summary>
+    public string SizeText => !SizeKnown ? ""
+        : Size is not { } size ? "–"
+        : size.IsEstimate ? "≈ " + DiskUsage.Format(size.Bytes)
+        : DiskUsage.Format(size.Bytes);
+
     partial void OnIsCheckedChanged(bool value) => _checkedChanged();
 }
 
 /// <summary>One manager (and, for Homebrew, one kind) in the Installed tab.</summary>
 public partial class PackageGroup : ViewModelBase
 {
-    public PackageGroup(string title, IReadOnlyList<PackageItem> items, string? error)
+    public PackageGroup(string title, IEnumerable<PackageItem> items, string? error)
     {
         Title = title;
-        Items = items;
+        Items = new ObservableCollection<PackageItem>(items);
         Error = error;
     }
 
     public string Title { get; }
-    public IReadOnlyList<PackageItem> Items { get; }
+
+    /// <summary>Re-sorted in place (by moving items), so the same <see cref="PackageItem"/> instances stay.</summary>
+    public ObservableCollection<PackageItem> Items { get; }
     public int Count => Items.Count;
     public string? Error { get; }
     public bool HasError => Error is not null;
@@ -50,6 +70,44 @@ public partial class PackageGroup : ViewModelBase
 
     /// <summary>False when the search hides every item and there is no error to show.</summary>
     [ObservableProperty] private bool _isVisible = true;
+
+    /// <summary>
+    /// Empty until every item has been reported, or when no size is known; otherwise the sum of the known sizes,
+    /// prefixed with "≈ " if any of them is an estimate.
+    /// </summary>
+    public string TotalText
+    {
+        get
+        {
+            if (Items.Any(i => !i.SizeKnown))
+                return "";
+            var known = Items.Select(i => i.Size).OfType<PackageSize>().ToList();
+            if (known.Count == 0)
+                return "";
+            var text = DiskUsage.Format(known.Sum(s => s.Bytes));
+            return known.Any(s => s.IsEstimate) ? "≈ " + text : text;
+        }
+    }
+
+    /// <summary>Call after changing items' sizes.</summary>
+    public void SizesChanged() => OnPropertyChanged(nameof(TotalText));
+
+    /// <summary>Sorts by size (largest first; unreported and unknown last, then by name) or by name.</summary>
+    public void Sort(bool bySize)
+    {
+        var ordered = bySize
+            ? Items.OrderBy(i => i is { SizeKnown: true, Size: not null } ? 0 : 1)
+                .ThenByDescending(i => i.SizeKnown ? i.Size?.Bytes ?? 0 : 0)
+                .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList()
+            : Items.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        for (var target = 0; target < ordered.Count; target++)
+        {
+            var current = Items.IndexOf(ordered[target]);
+            if (current != target)
+                Items.Move(current, target);
+        }
+    }
 }
 
 /// <summary>The Installed tab: lists installed packages and uninstalls the ticked ones.</summary>
@@ -65,6 +123,11 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
     private readonly Action _clearLog;
     private readonly Action? _showInstalled;
     private CancellationTokenSource? _loadCts;
+    private CancellationTokenSource? _measureCts;
+    // Incremented whenever Groups is rebuilt; size results for an older list are dropped.
+    private int _generation;
+    // The inventories the current Groups were built from, so measuring can restart for the same list.
+    private IReadOnlyList<ManagerInventory>? _inventories;
     private Task? _loadTask;
     private bool _loadDeferred;
     private bool _disposed;
@@ -103,6 +166,21 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(UninstallLabel))]
     [NotifyCanExecuteChangedFor(nameof(UninstallSelectedCommand))]
     private int _selectedCount;
+
+    /// <summary>True while package sizes are being measured. Never blocks Refresh or Uninstall.</summary>
+    [ObservableProperty] private bool _isMeasuring;
+
+    /// <summary>Sort each group by size instead of by name.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SortByName))]
+    private bool _sortBySize;
+
+    /// <summary>The inverse of <see cref="SortBySize"/>, for the "Name" toggle.</summary>
+    public bool SortByName
+    {
+        get => !SortBySize;
+        set => SortBySize = !value;
+    }
 
     /// <summary>The busy text, a listing error, or null.</summary>
     [ObservableProperty] private string? _statusMessage;
@@ -167,6 +245,8 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
 
         // Clear the log only once the engine has accepted this run (onStarted runs before its first log line),
         // so a run that started in the meantime keeps its log.
+        // Measuring probes the package managers too; don't compete with the uninstall run.
+        CancelMeasuring();
         _showLog();
         try
         {
@@ -181,6 +261,10 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         {
             StatusMessage = $"Could not uninstall: {ex.Message}";
             _showInstalled?.Invoke();
+            // No run completed, so no reload will remeasure: measure the list shown again (unless a listing is
+            // already under way or a run is busy: both end in a listing that measures).
+            if (_inventories is { } inventories && _loadCts is null && !IsBusy)
+                StartMeasuring(inventories);
         }
     }
 
@@ -188,10 +272,20 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
+    partial void OnSortBySizeChanged(bool value)
+    {
+        foreach (var group in Groups)
+            group.Sort(value);
+    }
+
     partial void OnIsBusyChanged(bool value)
     {
         if (value)
+        {
+            // Measuring probes the package managers too; the reload after the run remeasures.
+            CancelMeasuring();
             StatusMessage = BusyText;
+        }
         else if (StatusMessage == BusyText)
             StatusMessage = null;
     }
@@ -200,6 +294,7 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
     private async Task LoadAsync(bool keepTicks)
     {
         _loadCts?.Cancel();
+        CancelMeasuring();
         var cts = _loadCts = new CancellationTokenSource();
         IsLoading = true;
         if (StatusMessage != BusyText)
@@ -208,7 +303,11 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         {
             var inventories = await _services.Inventory.ListAsync(cts.Token);
             if (!cts.IsCancellationRequested)
+            {
                 BuildGroups(inventories, keepTicks);
+                _inventories = inventories;
+                StartMeasuring(inventories);
+            }
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -235,6 +334,7 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         var ticked = keepTicks
             ? Groups.SelectMany(g => g.Items).Where(i => i.IsChecked).Select(i => Key(i.Package)).ToHashSet()
             : [];
+        _generation++;
         Groups.Clear();
         foreach (var inventory in inventories.OrderBy(i => ManagerRank(i.ManagerId)))
         {
@@ -258,6 +358,76 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
 
         static (string, string, PackageKind) Key(InstalledPackage p) => (p.ManagerId, p.Name, p.Kind);
     }
+
+    private void StartMeasuring(IReadOnlyList<ManagerInventory> inventories)
+    {
+        CancelMeasuring();
+        if (_disposed)
+            return;
+        var cts = _measureCts = new CancellationTokenSource();
+        IsMeasuring = true;
+        _ = MeasureAsync(inventories, _generation, cts);
+    }
+
+    private async Task MeasureAsync(IReadOnlyList<ManagerInventory> inventories, int generation, CancellationTokenSource cts)
+    {
+        try
+        {
+            // Measuring walks the disk; keep it off the UI thread. Results are applied on the UI thread.
+            await Task.Run(() => _services.Inventory.MeasureAsync(inventories,
+                sizes => Dispatcher.UIThread.Post(() => ApplySizes(sizes, generation, cts)), cts.Token));
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // Replaced by a newer listing, an uninstall, or the window closed.
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Could not measure package sizes: {ex.Message}");
+        }
+        finally
+        {
+            // Queued after the last ApplySizes post, so IsMeasuring clears once every result is shown.
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_measureCts == cts)
+                {
+                    _measureCts = null;
+                    if (!_disposed)
+                        IsMeasuring = false;
+                }
+                cts.Dispose();
+            });
+        }
+    }
+
+    private void ApplySizes(IReadOnlyDictionary<PackageKey, PackageSize?> sizes, int generation, CancellationTokenSource cts)
+    {
+        // A cancelled measurement may have posted results made from cancelled (failed-looking) probes: drop them.
+        // Reading IsCancellationRequested is safe even after the CTS is disposed.
+        if (_disposed || generation != _generation || cts.IsCancellationRequested)
+            return;
+        foreach (var group in Groups)
+        {
+            var changed = false;
+            foreach (var item in group.Items)
+            {
+                if (!sizes.TryGetValue(PackageKey.Of(item.Package), out var size))
+                    continue;
+                item.Size = size;
+                item.SizeKnown = true;
+                changed = true;
+            }
+            if (!changed)
+                continue;
+            group.SizesChanged();
+            if (SortBySize)
+                group.Sort(bySize: true);
+        }
+    }
+
+    // Cancels a measurement in progress. IsMeasuring stays true until its task ends (or a new one replaces it).
+    private void CancelMeasuring() => _measureCts?.Cancel();
 
     /// <summary>
     /// The group a listing error is shown in. A Homebrew error with casks listed means the formulae failed;
@@ -317,5 +487,6 @@ public partial class InstalledViewModel : ViewModelBase, IDisposable
         _services.Engine.StatusChanged -= OnStatusChanged;
         _services.Engine.RunCompleted -= OnRunCompleted;
         _loadCts?.Cancel();
+        CancelMeasuring();
     }
 }

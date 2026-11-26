@@ -113,6 +113,15 @@
                     <DockPanel x:DataType="vm:InstalledViewModel" Margin="0,8">
                         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                             <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding RefreshCommand}" Margin="8,0,0,0" />
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" Margin="8,0,0,0">
+                                <TextBlock Classes="muted" Text="Sort:" VerticalAlignment="Center" Margin="0,0,2,0" />
+                                <RadioButton Theme="{StaticResource {x:Type ToggleButton}}" GroupName="InstalledSort"
+                                             Content="Name" IsChecked="{Binding SortByName}" />
+                                <RadioButton Theme="{StaticResource {x:Type ToggleButton}}" GroupName="InstalledSort"
+                                             Content="Size" IsChecked="{Binding SortBySize}" />
+                            </StackPanel>
+                            <TextBlock DockPanel.Dock="Right" Classes="muted" Text="Measuring sizes…" VerticalAlignment="Center"
+                                       TextWrapping="NoWrap" Margin="8,0,0,0" IsVisible="{Binding IsMeasuring}" />
                             <TextBox Text="{Binding SearchText}" PlaceholderText="Search" />
                         </DockPanel>
 
@@ -135,6 +144,8 @@
                                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                                     <TextBlock Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                                     <TextBlock Classes="muted" Text="{Binding Count}" IsVisible="{Binding ShowCount}" VerticalAlignment="Center" />
+                                                    <TextBlock Classes="muted" Text="{Binding TotalText}" VerticalAlignment="Center"
+                                                               IsVisible="{Binding TotalText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 </StackPanel>
                                             </Expander.Header>
                                             <StackPanel>
@@ -143,12 +154,17 @@
                                                 <ItemsControl ItemsSource="{Binding Items}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate x:DataType="vm:PackageItem">
-                                                            <CheckBox IsChecked="{Binding IsChecked}" IsVisible="{Binding IsVisible}">
-                                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                                                    <TextBlock Classes="muted" Text="{Binding Version}" VerticalAlignment="Center" />
-                                                                </StackPanel>
-                                                            </CheckBox>
+                                                            <DockPanel IsVisible="{Binding IsVisible}">
+                                                                <TextBlock DockPanel.Dock="Right" Classes="muted" Text="{Binding SizeText}"
+                                                                           TextWrapping="NoWrap" HorizontalAlignment="Right"
+                                                                           VerticalAlignment="Center" Margin="8,0,12,0" />
+                                                                <CheckBox IsChecked="{Binding IsChecked}">
+                                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                                        <TextBlock Classes="muted" Text="{Binding Version}" VerticalAlignment="Center" />
+                                                                    </StackPanel>
+                                                                </CheckBox>
+                                                            </DockPanel>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>

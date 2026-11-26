@@ -60,6 +60,28 @@ public sealed class NpmManager : PackageManager
             : new ManagerInventory(Id, DisplayName, packages, null);
     }
 
+    /// <summary>Each package is its folder under the global root; scoped names are nested folders. Linked ones are unknown.</summary>
+    public override async Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
+        IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken)
+    {
+        var result = Unknown(packages).ToDictionary();
+        if (packages.Count == 0 || await QueryRootAsync(runner, executable, Env, cancellationToken, "root", "-g") is not { } root)
+            return result;
+
+        return await Task.Run(() =>
+        {
+            foreach (var p in packages)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var folder = Path.Combine([root, .. p.Name.Split('/')]);
+                // A linked package (`npm link`) is someone's checkout elsewhere, not space this install takes.
+                if (Directory.Exists(folder) && !File.GetAttributes(folder).HasFlag(FileAttributes.ReparsePoint))
+                    result[PackageKey.Of(p)] = new PackageSize(DiskUsage.Measure([folder], cancellationToken), false);
+            }
+            return (IReadOnlyDictionary<PackageKey, PackageSize?>)result;
+        }, cancellationToken);
+    }
+
     public override CommandSpec BuildUninstallStep(AppSettings settings, string executable, InstalledPackage package) =>
         new($"Uninstall {package.Name}", executable, ["uninstall", "--global", package.Name]) { Environment = Env };
 

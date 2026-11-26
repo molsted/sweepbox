@@ -1,5 +1,6 @@
 // Renders Sweepbox's real windows off-screen with sample data, for the manual (user-docs/images).
 //   dotnet run --project tools/Screenshots -- <output dir>      then: python3 tools/frame_screenshots.py
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -38,7 +39,7 @@ foreach (var (theme, suffix) in new[] { (ThemeVariant.Light, ""), (ThemeVariant.
 
     foreach (var (services, platform) in new[] { (macServices, "macos"), (winServices, "windows") })
     {
-        Shot(new SettingsWindow { DataContext = new SettingsViewModel(services.Settings, platform == "windows" ? [new ChocoManager(), new NpmManager()] : services.Engine.Managers) },
+        Shot(new SettingsWindow { DataContext = new SettingsViewModel(services.Settings, platform == "windows" ? [new ChocoManager(), new NpmManager()] : [new BrewManager(), new NpmManager()]) },
             $"settings-{platform}{suffix}", fullHeight: true);
         Shot(new StatusWindow { DataContext = new StatusViewModel(services, () => { }) }, $"status-{platform}{suffix}");
         Shot(new StatusWindow { DataContext = new StatusViewModel(services, () => { }) }, $"status-log-{platform}{suffix}", selectTab: 2);
@@ -46,6 +47,14 @@ foreach (var (theme, suffix) in new[] { (ThemeVariant.Light, ""), (ThemeVariant.
         var installed = new StatusViewModel(services, () => { });
         installed.Installed.EnsureLoadedAsync().GetAwaiter().GetResult();
         Dispatcher.UIThread.RunJobs();
+        // Sizes arrive after the list: wait until measuring has finished.
+        for (var waited = Stopwatch.StartNew(); installed.Installed.IsMeasuring && waited.Elapsed < TimeSpan.FromSeconds(10);)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(20);
+        }
+        if (installed.Installed.IsMeasuring)
+            throw new InvalidOperationException("Measuring did not finish.");
         foreach (var item in installed.Installed.Groups.SelectMany(g => g.Items).Where(i => i.Package.Name is "zoom" or "typescript" or "gimp" or "yarn").Take(2))
             item.IsChecked = true;
         Dispatcher.UIThread.RunJobs();
@@ -122,22 +131,62 @@ internal static class SampleData
             history.Add(report);
         }
 
-        var managers = windows ? new PackageManager[] { new OnAnyOS(new ChocoManager()), new NpmManager() } : [new BrewManager(), new NpmManager()];
+        var managers = windows ? new PackageManager[] { new SampleManager(new ChocoManager(), anyOS: true), new SampleManager(new NpmManager()) }
+            : [new SampleManager(new BrewManager()), new SampleManager(new NpmManager())];
         return new AppServices(paths, managers, _ => Task.FromResult<ICommandRunner>(new FakeRunner(windows)));
     }
 
-    /// <summary>Lets the Windows screenshots list Chocolatey on a Mac: everything is forwarded except the OS check.</summary>
-    private sealed class OnAnyOS(PackageManager inner) : PackageManager
+    private const long MB = 1_000_000, GB = 1_000_000_000;
+
+    /// <summary>Fixed sample sizes: exact, estimated (IsEstimate) and unknown (null), as the real managers report them.</summary>
+    private static readonly Dictionary<(string Manager, string Name), PackageSize?> Sizes = new()
+    {
+        [("brew", "google-chrome")] = new(1_190_000_000, false),
+        [("brew", "visual-studio-code")] = new(412 * MB, false),
+        [("brew", "zoom")] = new(Convert.ToInt64(0.86 * GB), true),
+        [("brew", "slack")] = new(398 * MB, false),
+        [("brew", "gimp")] = new(742 * MB, false),
+        [("brew", "vlc")] = new(171 * MB, false),
+        [("brew", "ffmpeg")] = new(54_700_000, false),
+        [("brew", "git")] = new(54_000_000, false),
+        [("brew", "jq")] = new(1_200_000, false),
+        [("brew", "node")] = new(98_400_000, false),
+        [("brew", "ripgrep")] = new(5_900_000, false),
+        [("brew", "sqlite")] = new(9_800_000, false),
+        [("brew", "tree")] = new(120_000, false),
+        [("brew", "wget")] = new(3_700_000, false),
+        [("choco", "7zip")] = null, // no unique match in Apps & features
+        [("choco", "git")] = new(397 * MB, true),
+        [("choco", "googlechrome")] = new(683 * MB, true),
+        [("choco", "nodejs")] = new(112 * MB, true),
+        [("choco", "notepadplusplus")] = new(14_400_000, true),
+        [("choco", "powertoys")] = new(Convert.ToInt64(1.1 * GB), true),
+        [("choco", "vscode")] = new(396 * MB, true),
+        [("choco", "vlc")] = new(Convert.ToInt64(0.1 * GB), true),
+        [("npm", "typescript")] = new(23_000_000, false),
+        [("npm", "yarn")] = new(5_200_000, false),
+        [("npm", "serve")] = new(9_100_000, false),
+    };
+
+    /// <summary>
+    /// Wraps a real manager for the screenshots: forwards everything, but reports the fixed <see cref="Sizes"/>.
+    /// With <paramref name="anyOS"/> the Windows screenshots can list Chocolatey on a Mac.
+    /// </summary>
+    private sealed class SampleManager(PackageManager inner, bool anyOS = false) : PackageManager
     {
         public override string Id => inner.Id;
         public override string DisplayName => inner.DisplayName;
         public override string ShortName => inner.ShortName;
         public override string ExecutableName => inner.ExecutableName;
-        public override bool IsSupportedOnThisOS => true;
+        public override bool IsSupportedOnThisOS => anyOS || inner.IsSupportedOnThisOS;
         public override bool IsEnabled(AppSettings settings) => inner.IsEnabled(settings);
         public override IReadOnlyList<CommandSpec> BuildSteps(AppSettings settings, string executable) => inner.BuildSteps(settings, executable);
         public override Task<ManagerInventory> ListInstalledAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken) =>
             inner.ListInstalledAsync(runner, executable, cancellationToken);
+        public override Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
+            IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<PackageKey, PackageSize?>>(
+                packages.ToDictionary(PackageKey.Of, p => Sizes.GetValueOrDefault((Id, p.Name))));
         public override CommandSpec BuildUninstallStep(AppSettings settings, string executable, InstalledPackage package) =>
             inner.BuildUninstallStep(settings, executable, package);
         public override bool IsProtected(string packageName) => inner.IsProtected(packageName);
