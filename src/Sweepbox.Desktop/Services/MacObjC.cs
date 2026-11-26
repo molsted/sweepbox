@@ -11,18 +11,24 @@ namespace Sweepbox.Desktop.Services;
 internal static unsafe partial class MacObjC
 {
     private const string LibObjC = "/usr/lib/libobjc.dylib";
-    // Block ABI: BLOCK_IS_GLOBAL
+    // Block ABI flags: BLOCK_IS_GLOBAL | BLOCK_HAS_SIGNATURE (every clang/Swift block carries a signature;
+    // NSXPC reply blocks need one, and a missing one raises an Objective-C exception, which aborts).
     private const int BlockIsGlobal = 1 << 28;
+    private const int BlockHasSignature = 1 << 30;
 
-    /// <summary>A global block (no captures, no copy/dispose helpers) in unmanaged memory, never freed.</summary>
-    public static BlockLiteral* NewGlobalBlock(nint isa, void* invoke)
+    /// <summary>
+    /// A global block (no captures, no copy/dispose helpers) with the type <paramref name="signature"/> clang
+    /// would emit, in unmanaged memory and never freed.
+    /// </summary>
+    public static BlockLiteral* NewGlobalBlock(nint isa, void* invoke, string signature)
     {
         // Lives for the process lifetime: macOS may keep (and copy, a no-op for global blocks) a handler.
         var descriptor = (BlockDescriptor*)NativeMemory.AllocZeroed((nuint)sizeof(BlockDescriptor));
         descriptor->Size = (nuint)sizeof(BlockLiteral);
+        descriptor->Signature = (byte*)Marshal.StringToCoTaskMemUTF8(signature); // NUL-terminated, never freed
         var block = (BlockLiteral*)NativeMemory.AllocZeroed((nuint)sizeof(BlockLiteral));
         block->Isa = isa;
-        block->Flags = BlockIsGlobal;
+        block->Flags = BlockIsGlobal | BlockHasSignature;
         block->Invoke = invoke;
         block->Descriptor = descriptor;
         return block;
@@ -39,11 +45,13 @@ internal static unsafe partial class MacObjC
         public BlockDescriptor* Descriptor;
     }
 
+    // Without BLOCK_HAS_COPY_DISPOSE the signature follows size directly.
     [StructLayout(LayoutKind.Sequential)]
     public struct BlockDescriptor
     {
         public nuint Reserved;
         public nuint Size;
+        public byte* Signature;
     }
 
     // ---- Objective-C runtime ----

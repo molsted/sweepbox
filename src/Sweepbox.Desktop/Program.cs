@@ -119,6 +119,7 @@ internal static partial class Program
         };
         var report = services.Engine.RunAsync(RunTrigger.Manual).GetAwaiter().GetResult();
         // Posting is asynchronous on macOS: give the run's notification up to 5 s to reach the system.
+        // A completion callback arriving after the timeout is accepted: the process simply exits without it.
         Notifier.FlushAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
         return report?.Outcome is Outcome.Succeeded or Outcome.Skipped ? 0 : 1;
     }

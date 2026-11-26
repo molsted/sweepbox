@@ -28,6 +28,11 @@ internal static unsafe class MacNotifications
     // UNNotificationPresentationOptionSound | List | Banner
     private const nuint PresentationOptions = (1 << 1) | (1 << 3) | (1 << 4);
 
+    // Block type signatures as clang emits them. BOOL is `bool` (B) on arm64 and `signed char` (c) on x64.
+    private const string AddHandlerSignature = "v16@?0@\"NSError\"8";                 // void (^)(NSError *)
+    private static readonly string AuthorizationHandlerSignature =                  // void (^)(BOOL, NSError *)
+        RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "v20@?0B8@\"NSError\"12" : "v20@?0c8@\"NSError\"12";
+
     private static readonly object Gate = new();
     private static bool _initialized;
     private static volatile bool _available;
@@ -247,15 +252,15 @@ internal static unsafe class MacNotifications
             }
 
             _authorizationHandler = NewGlobalBlock(globalBlockIsa,
-                (delegate* unmanaged<BlockLiteral*, byte, nint, void>)&OnAuthorizationCompleted);
+                (delegate* unmanaged<BlockLiteral*, byte, nint, void>)&OnAuthorizationCompleted, AuthorizationHandlerSignature);
             _addHandler = NewGlobalBlock(globalBlockIsa,
-                (delegate* unmanaged<BlockLiteral*, nint, void>)&OnAddCompleted);
+                (delegate* unmanaged<BlockLiteral*, nint, void>)&OnAddCompleted, AddHandlerSignature);
 
-            _delegate = CreateDelegate(nsObject, selWillPresent);
+            _delegate = CreateDelegate(nsObject, selWillPresent, out var delegateFailure);
             if (_delegate != 0)
                 Msg_void_id(_center, selSetDelegate, _delegate);
             else
-                Trace.WriteLine("macOS notifications: no delegate, so they are hidden while Sweepbox is frontmost.");
+                Trace.WriteLine($"macOS notifications: no delegate ({delegateFailure}), so they are hidden while Sweepbox is frontmost.");
 
             _available = true;
 
@@ -268,19 +273,24 @@ internal static unsafe class MacNotifications
         }
     }
 
-    /// <summary>Creates (once per process) the delegate class and returns a +1 instance of it, or 0.</summary>
-    private static nint CreateDelegate(nint nsObject, nint selWillPresent)
+    /// <summary>Creates (once per process) the delegate class and returns a +1 instance of it, or 0 with the reason.</summary>
+    private static nint CreateDelegate(nint nsObject, nint selWillPresent, out string failure)
     {
+        failure = "";
         var cls = objc_getClass(DelegateClassName);
         if (cls == 0)
         {
             cls = objc_allocateClassPair(nsObject, DelegateClassName, 0);
             if (cls == 0)
+            {
+                failure = "objc_allocateClassPair failed";
                 return 0;
+            }
             var imp = (nint)(delegate* unmanaged<nint, nint, nint, nint, BlockLiteral*, void>)&WillPresentNotification;
             if (class_addMethod(cls, selWillPresent, imp, "v@:@@@?") == 0)
             {
                 objc_disposeClassPair(cls);
+                failure = "class_addMethod failed";
                 return 0;
             }
             var protocol = objc_getProtocol("UNUserNotificationCenterDelegate");
@@ -289,7 +299,10 @@ internal static unsafe class MacNotifications
             objc_registerClassPair(cls);
         }
         var instance = Msg_id(cls, _selAlloc);
-        return instance == 0 ? 0 : Msg_id(instance, _selInit);
+        var initialized = instance == 0 ? 0 : Msg_id(instance, _selInit);
+        if (initialized == 0)
+            failure = "the delegate instance could not be created";
+        return initialized;
     }
 
     /// <summary>NSString from a .NET string (autoreleased; never passes NULL to stringWithUTF8String:).</summary>
