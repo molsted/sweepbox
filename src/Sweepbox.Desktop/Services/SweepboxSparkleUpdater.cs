@@ -65,6 +65,8 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
                 // The running binary keeps executing from its open files until we quit.
                 AppBundleSwap.Replace(running, staged);
                 staged = null;
+                // Clean up now: once we quit, this thread may not get to the finally block.
+                DeleteQuietly(extract, downloadFilePath);
                 StartRelaunchAfterExit(running);
                 _quit();
             }
@@ -76,8 +78,7 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
             {
                 if (staged is not null)
                     try { Directory.Delete(staged, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-                try { Directory.Delete(extract, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-                try { File.Delete(downloadFilePath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                DeleteQuietly(extract, downloadFilePath);
             }
         });
     }
@@ -108,6 +109,14 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
         var contents = dir is null ? null : Path.GetDirectoryName(dir);
         var bundle = contents is null ? null : Path.GetDirectoryName(contents);
         return bundle is not null && bundle.EndsWith(".app", StringComparison.OrdinalIgnoreCase) ? bundle : null;
+    }
+
+    private static void DeleteQuietly(string folder, string file)
+    {
+        try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        try { File.Delete(file); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
     private static bool Run(string fileName, params string[] arguments)
