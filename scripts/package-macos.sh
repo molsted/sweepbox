@@ -52,7 +52,7 @@ for ARCH in $ARCHS; do
   # transitive packages; publish then reuses that graph for its RID (--no-restore).
   dotnet restore "$PROJECT" -p:RestoreLockedMode=true -nologo -v quiet
   # Not single-file: native dylibs must sit next to the executable inside the bundle to be signed.
-  dotnet publish "$PROJECT" -c Release -r "osx-$ARCH" --self-contained --no-restore \
+  dotnet publish "$PROJECT" -c Release -f net10.0 -r "osx-$ARCH" --self-contained --no-restore \
     -p:PublishSingleFile=false -p:DebugType=none -o "$APP/Contents/MacOS" -nologo -v quiet
 
   sed "s/__VERSION__/$VERSION/g" "$ROOT/installer/macos/Info.plist" > "$APP/Contents/Info.plist"

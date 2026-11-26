@@ -255,7 +255,7 @@
           "Microsoft.NET.ILLink.Tasks": "[10.0.15, )",
           "NetSparkleUpdater.SparkleUpdater": "[3.1.1-preview20261011001, )",
           "NetSparkleUpdater.UI.Avalonia": "[4.0.0-preview20261011001, )",
-          "Sweepbox.Core": "[1.3.0, )"
+          "Sweepbox.Core": "[1.3.1, )"
         }
       },
       "sweepbox.core": {

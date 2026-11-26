@@ -13,10 +13,12 @@ dotnet build Sweepbox.slnx
 dotnet test Sweepbox.slnx                                         # unit tests (Core only)
 dotnet test Sweepbox.slnx -c Release -p:RestoreLockedMode=true    # exactly what CI runs
 
-dotnet run --project src/Sweepbox.Desktop                         # the tray / menu bar app
-dotnet run --project src/Sweepbox.Desktop -- --dry-run            # print the commands a run would execute, then exit
-dotnet run --project src/Sweepbox.Desktop -- --run                # one real headless run
+dotnet run --project src/Sweepbox.Desktop -f net10.0                   # the tray / menu bar app
+dotnet run --project src/Sweepbox.Desktop -f net10.0 -- --dry-run      # print the commands a run would execute, then exit
+dotnet run --project src/Sweepbox.Desktop -f net10.0 -- --run          # one real headless run
 ```
+
+`-f net10.0` runs the cross-platform build; on Windows use `-f net10.0-windows10.0.19041.0` instead (the Windows target is what the installer ships).
 
 > ⚠️ `--run`, **Run Now** and the scheduler really upgrade and clean the Homebrew/Chocolatey/npm installs on your machine. Use `--dry-run` to check what changed in the steps. To test the run flow safely, turn managers off in Settings or point `ExtraPath` at a folder of stub scripts.
 
