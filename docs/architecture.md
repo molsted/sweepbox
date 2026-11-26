@@ -18,6 +18,7 @@ Sweepbox.Tests    (xUnit)                                   ──references─�
 | `Engine/` | `MaintenanceEngine`, `Scheduler`, `RunReport`, `RunHistoryStore` | Run the managers and uninstalls, record the results, decide when the next run is due |
 | `Settings/` | `AppSettings`, `SettingsStore`, `AppPaths`, `JsonFile` | User settings, data folder locations, atomic JSON persistence |
 | `Platform/` | `LaunchAtLogin` | LaunchAgent plist (macOS) / `HKCU\…\Run` value (Windows) |
+| `Diagnostics/` | `FileTraceListener` | Writes `Trace` output to `logs/sweepbox.log`, timestamped, rotated to `.1` past 1 MB, never throws |
 
 ### Package managers
 
@@ -94,7 +95,7 @@ Both `Scheduler` and `MaintenanceEngine` take a `TimeProvider`. Tests drive them
 - Windows: `%APPDATA%\Sweepbox`
 - Linux: `$XDG_CONFIG_HOME` or `~/.config`
 
-On first start it moves the folder over from the app's former name, `PkgCleaner`. The folder holds `settings.json`, `history.json` (the last 50 runs), `logs/` and the `.lock` file.
+On first start it moves the folder over from the app's former name, `PkgCleaner`. The folder holds `settings.json`, `history.json` (the last 50 runs), `logs/` and the `.lock` file. Besides the run logs, `logs/` holds `sweepbox.log`: everything written to `Trace` (see the `Diagnostics/` row above).
 
 `SettingsStore`:
 

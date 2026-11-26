@@ -30,7 +30,7 @@ Native notifications have to be tried by hand. On macOS they work only when Swee
 
 A dev build uses the **same data folder** as an installed copy: `~/Library/Application Support/Sweepbox` on macOS, `%APPDATA%\Sweepbox` on Windows. It shares the same single-instance lock too, so quit the installed app before running a dev build. Delete `settings.json` to see the first-run flow again (the start-at-login question appears only in installed copies).
 
-Logs from the app itself go to `Trace`. Each run's output is in `logs/run-*.log` in the data folder, and the Status window has links to them.
+Diagnostics from the app itself go to `Trace`, which `Program.Main` routes to `logs/sweepbox.log` in the data folder (`Core/Diagnostics/FileTraceListener`: one timestamped line per message, moved to `sweepbox.log.1` past 1 MB). Use `Trace.WriteLine` for anything a user might need to report. Each run's output is in `logs/run-*.log` in the data folder, and the Status window has links to them.
 
 ## Project rules
 

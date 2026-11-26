@@ -267,6 +267,7 @@ On macOS the executable is `/Applications/Sweepbox.app/Contents/MacOS/Sweepbox`.
 |---|---|---|
 | Settings and run history | `~/Library/Application Support/Sweepbox/` | `%APPDATA%\Sweepbox\` |
 | Log of each run (last 60 kept) | `…/Sweepbox/logs/` | `…\Sweepbox\logs\` |
+| Diagnostics log (`sweepbox.log`, about 1 MB plus one older copy) | `…/Sweepbox/logs/` | `…\Sweepbox\logs\` |
 | Login item | `~/Library/LaunchAgents/dk.sweepbox.agent.plist` | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Sweepbox` |
 
 `settings.json` is plain JSON and can be edited while Sweepbox is not running. Settings from the app's previous name (PkgCleaner) are moved over automatically.
@@ -291,7 +292,7 @@ Raise *Step timeout* in Settings, for example when large casks or packages downl
 Notifications only work when Sweepbox runs from the **Applications** folder. macOS refuses them from anywhere else, for example straight from the disk image or the Downloads folder. Drag Sweepbox to Applications and start it from there. Then check that Sweepbox is allowed under *System Settings → Notifications*.
 
 **Where can I see exactly what happened?**
-*Status and Log… → History → Log*, or the logs folder (see [Files and folders](#files-and-folders)).
+*Status and Log… → History → Log*, or the logs folder (see [Files and folders](#files-and-folders)). For problems outside a run, such as missing notifications, an update that did not install or start at login not working, look in `sweepbox.log` in the same folder. Each start of Sweepbox and every problem it noticed is written there with a timestamp.
 
 ---
 
