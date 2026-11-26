@@ -87,13 +87,13 @@ Homebrew formulae installed only as dependencies are deliberately not listed. Re
 When the selection contains Homebrew items and Autoremove is on, the confirmation dialog says "Homebrew will also remove dependencies that nothing else uses."
 
 **Chocolatey dependency packages** (my call): `choco list` returns every local package, including dependencies.
-- `X.install` and `X.portable` are hidden when the meta-package `X` is also installed, because uninstalling `X` is the user's real choice.
+- `X.install` and `X.portable` are hidden when the meta-package `X` is also installed, because uninstalling `X` is the user's real choice. They become `X`'s companions (`InstalledPackage.Companions`): uninstalling `X` only removes the meta-package, so the engine also uninstalls each companion as its own step right after `X` (never with `--remove-dependencies`), and the confirmation line reads "git (Chocolatey), also removes git.install".
 - `chocolatey` and `chocolatey-*.extension` are protected.
 - Other dependency-like packages (`vcredist*`, `KB*`, `dotnetfx`) stay visible, because users sometimes install them directly. Without `--force`, Chocolatey refuses to uninstall a package that another one depends on, and that refusal is reported as an ordinary failure. The uninstall command never passes `--force` or `--force-dependencies`.
 
 **Chocolatey version** (my call): only Chocolatey 2.x is supported, where `choco list` means local packages. Listing first runs `choco --version`. On 1.x the Chocolatey group shows "Chocolatey 2 or later is needed to list packages" and offers nothing, so it never presents the remote feed as installed packages.
 
-A listing command that fails (non-zero exit, or output that can't be parsed) yields an error for that manager, not an exception. The UI shows "Couldn't list Homebrew packages – see log" for that group, and the other groups still show.
+A listing command that fails (non-zero exit, or output that can't be parsed) yields an error for that manager, not an exception. The error reads `Couldn't list Homebrew packages: "brew list --cask --versions" failed (exit 1): <last output line>.` (or `(timed out after 60 s).`), the command and its full output go to the trace, and the other groups still show. If the Homebrew casks list but the formulae don't, the casks still show and the error appears in the command-line tools group.
 
 ### Core: running an uninstall
 

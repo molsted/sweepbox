@@ -211,12 +211,19 @@ The **Installed** tab lists what your package managers have installed, so you ca
   <img src="images/installed-macos.png" alt="Status window: installed packages" width="760">
 </picture>
 
+On Windows the tab lists Chocolatey and npm packages:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/installed-windows-dark.png">
+  <img src="images/installed-windows.png" alt="Status window: installed packages (Windows)" width="760">
+</picture>
+
 - **What is listed**: Homebrew apps (casks) and the command-line tools you installed yourself, Chocolatey packages, and npm global packages. Only managers that are installed on your computer appear, even if you turned them off in Settings.
 - **What is not listed**: Homebrew formulae that were only installed as dependencies of something else, because removing those by hand can break the tools that need them. Packages that must stay are hidden too: `npm` and `corepack` for npm, and `chocolatey` and its `chocolatey-*.extension` packages for Chocolatey. For Chocolatey, `git.install` and `git.portable` style packages are hidden when `git` itself is installed.
 - **Find and select**: type in **Search** to filter by name, and tick the packages you want to remove. Ticks stay when the filter hides a package, and the button counts them. **Refresh** reads the lists again.
 - **Confirm**: **Uninstall selected (n)** opens a dialog that names every package. Nothing is removed until you press **Uninstall**. **Cancel** is the default.
 - **Homebrew dependencies**: if **Remove unused dependencies** is on in Settings, Homebrew also removes formulae that nothing else uses after the uninstall, and the dialog tells you so. If it is off, Sweepbox tells Homebrew to leave them.
-- **Chocolatey**: Sweepbox needs Chocolatey 2 or later to list packages. If you have version 1, the group says so and lists nothing. If **Ask for administrator rights (UAC)** is on, you get one prompt per Chocolatey package.
+- **Chocolatey**: Sweepbox needs Chocolatey 2 or later to list packages. If you have version 1, the group says so and lists nothing. Uninstalling a package such as `git` also uninstalls its hidden `git.install` or `git.portable` package, which holds the actual software. The dialog says so (for example *git (Chocolatey), also removes git.install*), and each one gets its own line in the log. If **Ask for administrator rights (UAC)** is on, you get one prompt per Chocolatey package, companions included.
 - **No forcing**: Sweepbox never forces an uninstall. If a package is still needed by another one, the uninstall fails and the package stays installed.
 - **Results**: the window switches to **Live log** while the uninstall runs. A failed package doesn't stop the others. The run appears in **History** as an Uninstall, with its own log file. It doesn't change the last-run result, the schedule or the space freed.
 
