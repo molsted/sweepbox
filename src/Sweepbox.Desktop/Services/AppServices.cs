@@ -9,17 +9,18 @@ namespace Sweepbox.Desktop.Services;
 /// <summary>Wires the core pieces together; one instance for the app's lifetime.</summary>
 public sealed class AppServices : IDisposable
 {
-    public AppServices(AppPaths paths, IReadOnlyList<PackageManager>? managers = null)
+    public AppServices(
+        AppPaths paths,
+        IReadOnlyList<PackageManager>? managers = null,
+        Func<AppSettings, Task<ICommandRunner>>? runnerFactory = null)
     {
         Paths = paths;
         Settings = new SettingsStore(paths.SettingsFile);
         History = new RunHistoryStore(paths.HistoryFile);
-        Engine = new MaintenanceEngine(
-            () => Settings.Current,
-            async settings => new ProcessCommandRunner(await ShellEnvironment.ResolvePathAsync(settings.ExtraPath)),
-            managers ?? PackageManager.ForThisOS,
-            History,
-            paths.LogDirectory);
+        managers ??= PackageManager.ForThisOS;
+        runnerFactory ??= async settings => new ProcessCommandRunner(await ShellEnvironment.ResolvePathAsync(settings.ExtraPath));
+        Engine = new MaintenanceEngine(() => Settings.Current, runnerFactory, managers, History, paths.LogDirectory);
+        Inventory = new PackageInventory(() => Settings.Current, runnerFactory, managers);
         Scheduler = new Scheduler(Engine, () => Settings.Current, History);
 
         Engine.RunCompleted += Notify;
@@ -31,6 +32,7 @@ public sealed class AppServices : IDisposable
     public RunHistoryStore History { get; }
     public MaintenanceEngine Engine { get; }
     public Scheduler Scheduler { get; }
+    public PackageInventory Inventory { get; }
 
     public void Start()
     {
@@ -42,12 +44,19 @@ public sealed class AppServices : IDisposable
     public Task RunNowAsync(params string[] onlyManagerIds) =>
         Engine.RunAsync(RunTrigger.Manual, onlyManagerIds.Length == 0 ? null : onlyManagerIds);
 
+    /// <summary>Uninstalls the packages as one run; <c>null</c> when another run is in progress.</summary>
+    public Task<RunReport?> UninstallAsync(IReadOnlyList<InstalledPackage> packages) => Engine.UninstallAsync(packages);
+
     private void Notify(RunReport report)
     {
         var settings = Settings.Current;
         var failed = report.Outcome == Outcome.Failed;
-        if ((failed && settings.NotifyOnFailure) || (report.Outcome == Outcome.Succeeded && settings.NotifyOnSuccess))
-            Notifier.Show(failed ? "Maintenance failed" : "Maintenance finished", report.Summary);
+        if (!((failed && settings.NotifyOnFailure) || (report.Outcome == Outcome.Succeeded && settings.NotifyOnSuccess)))
+            return;
+        var title = report.Trigger == RunTrigger.Uninstall
+            ? failed ? "Uninstall failed" : "Uninstall finished"
+            : failed ? "Maintenance failed" : "Maintenance finished";
+        Notifier.Show(title, report.Summary);
     }
 
     private static void TryApplyLaunchAtLogin(bool enabled)
