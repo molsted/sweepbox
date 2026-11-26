@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using Sweepbox.Core.Settings;
 using Sweepbox.Desktop.Services;
 using Sweepbox.Desktop.Tray;
@@ -20,6 +21,7 @@ public partial class App : Application
     private StatusWindow? _statusWindow;
     private SettingsWindow? _settingsWindow;
     private AppUpdater? _updater;
+    private bool _quitting;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -28,7 +30,9 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _services = new AppServices(Paths);
-            var quit = () => Quit(desktop);
+            // Quit can be requested from background threads (the updater installs off the UI thread);
+            // disposing the tray icon anywhere but the UI thread hangs on macOS, so always quit there.
+            var quit = () => Dispatcher.UIThread.Post(() => Quit(desktop));
             _updater = new AppUpdater(_services.Settings, LoadAppIcon(), quit);
             _tray = new TrayController(this, _services, ShowStatus, ShowSettings, _updater.CheckAtUserRequest, quit);
             _services.Settings.Changed += _ => _updater.UpdateAutomatic();
@@ -117,6 +121,10 @@ public partial class App : Application
 
     private void Quit(IClassicDesktopStyleApplicationLifetime desktop)
     {
+        // The updater can ask twice (its install step and NetSparkle's CloseApplication); quit once.
+        if (_quitting)
+            return;
+        _quitting = true;
         _tray?.Dispose();
         desktop.Shutdown();
     }
