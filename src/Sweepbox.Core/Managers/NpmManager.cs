@@ -48,7 +48,13 @@ public sealed class NpmManager : PackageManager
     {
         var output = await ProbeAsync(runner, executable, Env, cancellationToken, "ls", "--global", "--depth=0", "--json");
         // npm exits non-zero for harmless problems such as extraneous packages, so trust the JSON, not the exit code.
-        var packages = ParseGlobals(string.Join('\n', output.Lines));
+        // stdout and stderr share one stream, so npm warnings can surround the JSON: keep only the outermost braces.
+        var text = string.Join('\n', output.Lines);
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+        if (start >= 0 && end > start)
+            text = text[start..(end + 1)];
+        var packages = ParseGlobals(text);
         return packages is null
             ? ListFailed("npm ls --global --depth=0 --json", output)
             : new ManagerInventory(Id, DisplayName, packages, null);

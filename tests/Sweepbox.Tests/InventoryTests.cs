@@ -184,6 +184,25 @@ public sealed class InventoryTests
     }
 
     [Fact]
+    public async Task Npm_lists_when_warnings_surround_the_json()
+    {
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["ls --global --depth=0 --json"] = "npm warn config global `--global` is deprecated\n{\"dependencies\":{\"typescript\":{\"version\":\"5.6.3\"}}}\nnpm notice done";
+        var inv = await new NpmManager().ListInstalledAsync(runner, "/fake/npm", CancellationToken.None);
+        Assert.Null(inv.Error);
+        Assert.Equal(["typescript"], inv.Packages.Select(p => p.Name));
+    }
+
+    [Fact]
+    public void Npm_dependency_without_version_has_null_version()
+    {
+        var p = NpmManager.ParseGlobals("{\"dependencies\":{\"left-pad\":{}}}");
+        var single = Assert.Single(p!);
+        Assert.Equal("left-pad", single.Name);
+        Assert.Null(single.Version);
+    }
+
+    [Fact]
     public void Npm_uninstall_arguments()
     {
         var step = new NpmManager().BuildUninstallStep(new AppSettings(), "npm", new("npm", "@angular/cli", null, PackageKind.Package));
