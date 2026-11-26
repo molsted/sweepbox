@@ -83,27 +83,133 @@ public sealed class BrewManager : PackageManager
         return new ManagerInventory(Id, DisplayName, [.. caskPackages, .. ParseFormulae(leaves.Lines, versions.Lines)], null);
     }
 
-    /// <summary>Formulae are their Cellar folder (exact). Casks are not measured yet.</summary>
+    /// <summary>
+    /// Formulae are their Cellar folder (exact). Casks are measured from their <c>brew info</c> entry: apps plus
+    /// Caskroom (exact), or apps, uninstall paths and package receipts (an estimate).
+    /// </summary>
     public override async Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
         IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var result = Unknown(packages).ToDictionary();
         var formulae = packages.Where(p => p.Kind == PackageKind.Formula).ToList();
-        if (formulae.Count == 0 || await QueryRootAsync(runner, executable, Env, cancellationToken, "--prefix") is not { } prefix)
+        var casks = packages.Where(p => p.Kind == PackageKind.Cask).ToList();
+        if (formulae.Count == 0 && casks.Count == 0)
             return result;
+        var prefix = await QueryRootAsync(runner, executable, Env, cancellationToken, "--prefix");
 
-        return await Task.Run(() =>
+        if (prefix is not null && formulae.Count > 0)
         {
-            foreach (var p in formulae)
+            await Task.Run(() =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var folder = Path.Combine(prefix, "Cellar", p.Name[(p.Name.LastIndexOf('/') + 1)..]);
-                if (Directory.Exists(folder))
-                    result[PackageKey.Of(p)] = new PackageSize(DiskUsage.Measure([folder], cancellationToken), false);
-            }
-            return (IReadOnlyDictionary<PackageKey, PackageSize?>)result;
-        }, cancellationToken);
+                foreach (var p in formulae)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var folder = Path.Combine(prefix, "Cellar", p.Name[(p.Name.LastIndexOf('/') + 1)..]);
+                    if (Directory.Exists(folder))
+                        result[PackageKey.Of(p)] = new PackageSize(DiskUsage.Measure([folder], cancellationToken), false);
+                }
+            }, cancellationToken);
+        }
+        if (casks.Count > 0)
+            await MeasureCasksAsync(runner, executable, casks, prefix, result, cancellationToken);
+        return result;
     }
+
+    private static async Task MeasureCasksAsync(ICommandRunner runner, string executable, List<InstalledPackage> casks,
+        string? prefix, Dictionary<PackageKey, PackageSize?> result, CancellationToken cancellationToken)
+    {
+        var byName = new Dictionary<string, CaskFootprint>(StringComparer.Ordinal);
+        var footprints = await CaskInfoAsync(runner, executable, casks.Select(p => p.Name).ToList(), cancellationToken);
+        foreach (var f in footprints)
+            byName[f.Token] = f;
+        foreach (var f in footprints)
+            foreach (var alias in f.Aliases)
+                byName.TryAdd(alias, f);
+
+        var pkgutil = OperatingSystem.IsMacOS() ? runner.ResolveExecutable("pkgutil") : null;
+        var receipts = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+        foreach (var p in casks)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!byName.TryGetValue(p.Name, out var cask))
+                continue;
+            try
+            {
+                // Caskroom folders are named as `brew list --cask` prints them.
+                var caskroom = prefix is not null && BrewCaskSizes.IsSafeSegment(p.Name) ? Path.Combine(prefix, "Caskroom", p.Name) : null;
+                var files = new List<string>();
+                if (pkgutil is not null)
+                {
+                    foreach (var id in cask.PkgIds)
+                    {
+                        if (!receipts.TryGetValue(id, out var listed))
+                            receipts[id] = listed = await ReceiptFilesAsync(runner, pkgutil, id, cancellationToken);
+                        files.AddRange(listed);
+                    }
+                }
+                result[PackageKey.Of(p)] = await Task.Run(() => BrewCaskSizes.Measure(cask, caskroom, files, cancellationToken), cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                System.Diagnostics.Trace.WriteLine($"Couldn't measure cask {p.Name}: {ex}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// One <c>brew info</c> call for all casks. One stale cask fails the whole call, so on failure each cask is asked
+    /// for alone and those that still fail are left out.
+    /// </summary>
+    private static async Task<IReadOnlyList<CaskFootprint>> CaskInfoAsync(ICommandRunner runner, string executable,
+        IReadOnlyList<string> tokens, CancellationToken cancellationToken)
+    {
+        if (await TryCaskInfoAsync(runner, executable, tokens, cancellationToken) is { } all)
+            return all;
+        var result = new List<CaskFootprint>();
+        if (tokens.Count > 1)
+            foreach (var token in tokens)
+                if (await TryCaskInfoAsync(runner, executable, [token], cancellationToken) is { } one)
+                    result.AddRange(one);
+        return result;
+    }
+
+    private static async Task<IReadOnlyList<CaskFootprint>?> TryCaskInfoAsync(ICommandRunner runner, string executable,
+        IReadOnlyList<string> tokens, CancellationToken cancellationToken)
+    {
+        var output = await ProbeAsync(runner, executable, Env, cancellationToken, ["info", "--json=v2", "--cask", .. tokens]);
+        if (!output.Succeeded)
+            return null;
+        // Warnings and errors are mixed into the output: keep the JSON object only.
+        var text = string.Join('\n', output.Lines);
+        int first = text.IndexOf('{'), last = text.LastIndexOf('}');
+        if (first < 0 || last < first)
+            return null;
+        try
+        {
+            return BrewCaskSizes.ParseCaskInfo(text[first..(last + 1)], Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"brew info --cask {string.Join(' ', tokens)} printed unreadable JSON: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>The regular files a package receipt lists, or none when <c>pkgutil</c> knows no such receipt.</summary>
+    private static async Task<IReadOnlyList<string>> ReceiptFilesAsync(ICommandRunner runner, string pkgutil, string id,
+        CancellationToken cancellationToken)
+    {
+        var info = await ProbeAsync(runner, pkgutil, NoEnv, cancellationToken, "--pkg-info", id);
+        if (!info.Succeeded || BrewCaskSizes.ParsePkgRoot(info.Lines) is not { } root)
+            return [];
+        var files = await ProbeAsync(runner, pkgutil, NoEnv, cancellationToken, "--files", id);
+        if (!files.Succeeded)
+            return [];
+        return await Task.Run(() => BrewCaskSizes.ReceiptFiles(root, files.Lines).ToList(), cancellationToken);
+    }
+
+    private static readonly Dictionary<string, string> NoEnv = [];
 
     public override CommandSpec BuildUninstallStep(AppSettings settings, string executable, InstalledPackage package)
     {
