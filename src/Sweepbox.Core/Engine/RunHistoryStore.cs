@@ -42,6 +42,12 @@ public sealed class RunHistoryStore(string path, int maxEntries = 50)
             runs.Add(report);
             if (runs.Count > maxEntries)
                 runs.RemoveRange(0, runs.Count - maxEntries);
+            if (_readFailed)
+            {
+                // The file exists but couldn't be read: keep it as it is rather than replace it with this session's runs.
+                Trace.WriteLine($"Not saving run history: {path} couldn't be read when Sweepbox started.");
+                return;
+            }
             try
             {
                 JsonFile.Write(path, new HistoryFile { Runs = runs });
@@ -53,5 +59,16 @@ public sealed class RunHistoryStore(string path, int maxEntries = 50)
         }
     }
 
-    private List<RunReport> Load() => _runs ??= JsonFile.Read<HistoryFile>(path)?.Runs ?? [];
+    private bool _readFailed;
+
+    private List<RunReport> Load()
+    {
+        if (_runs is null)
+        {
+            _runs = JsonFile.Read<HistoryFile>(path, out ReadFailure failure)?.Runs ?? [];
+            // A corrupt file was kept as .corrupt and may be replaced; an unreadable one is left alone.
+            _readFailed = failure == ReadFailure.Unreadable;
+        }
+        return _runs;
+    }
 }

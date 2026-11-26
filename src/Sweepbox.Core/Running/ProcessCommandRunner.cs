@@ -91,16 +91,18 @@ public sealed class ProcessCommandRunner(string path) : ICommandRunner
     private async Task<CommandResult> RunElevatedWindowsAsync(CommandSpec spec, Action<string> onOutput, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        string[] userWritable =
+        // Allowlist: only folders administrators control. Anything else could be swapped by a program running
+        // as the user between our check and the elevated start.
+        string?[] allowed =
         [
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            System.IO.Path.GetTempPath(),
+            Environment.GetEnvironmentVariable("ChocolateyInstall", EnvironmentVariableTarget.Machine),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
         ];
-        if (!ElevatedScript.IsSafeExecutable(spec.Executable, userWritable))
+        if (!ElevatedScript.IsAllowedExecutable(spec.Executable, allowed.OfType<string>()))
             return new CommandResult(-1, stopwatch.Elapsed,
-                Error: $"Refusing to run {spec.Executable} as administrator from a folder your user account can change.");
+                Error: $"Refusing to run {spec.Executable} as administrator: it isn't in a folder only administrators can change.");
 
         var tempDir = Directory.CreateTempSubdirectory("sweepbox-").FullName;
         try
@@ -109,7 +111,10 @@ public sealed class ProcessCommandRunner(string path) : ICommandRunner
             var script = System.IO.Path.Combine(tempDir, "run.cmd");
             try
             {
-                await File.WriteAllTextAsync(script, ElevatedScript.Build(Path, spec.Environment, spec.Executable, spec.Arguments, logFile), cancellationToken);
+                await File.WriteAllTextAsync(script, ElevatedScript.Build(
+                    // The machine PATH only: user PATH entries are exactly what a non-admin program could plant.
+                    ElevatedScript.SafePath(Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine)),
+                    spec.Environment, spec.Executable, spec.Arguments, logFile, Environment.SystemDirectory), cancellationToken);
             }
             catch (ArgumentException ex)
             {
@@ -122,8 +127,9 @@ public sealed class ProcessCommandRunner(string path) : ICommandRunner
                 Verb = "runas",
                 WindowStyle = ProcessWindowStyle.Hidden,
             };
-            psi.ArgumentList.Add("/c");
-            psi.ArgumentList.Add(script);
+            // /d: don't run the user's AutoRun command as administrator; /v:off: no delayed expansion of "!".
+            foreach (var arg in new[] { "/d", "/v:off", "/c", script })
+                psi.ArgumentList.Add(arg);
 
             // Process.Start blocks until the UAC prompt is answered; wait for it off-thread so the step's
             // timeout and Cancel still apply while the prompt is open.

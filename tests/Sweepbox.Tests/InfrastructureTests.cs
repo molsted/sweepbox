@@ -47,6 +47,30 @@ public sealed class InfrastructureTests : IDisposable
     }
 
     [Fact]
+    public void Corrupt_history_is_replaced_and_kept_as_a_copy()
+    {
+        var path = Path.Combine(_dir, "history.json");
+        File.WriteAllText(path, "{ not json");
+        var history = new RunHistoryStore(path);
+
+        history.Add(new RunReport { Trigger = RunTrigger.Manual });
+
+        Assert.True(File.Exists(path + ".corrupt"));
+        Assert.Single(new RunHistoryStore(path).Runs);
+    }
+
+    [Fact]
+    public void Quoted_path_entries_are_searched_without_their_quotes()
+    {
+        var dir = Path.Combine(_dir, "with space");
+        Directory.CreateDirectory(dir);
+        var tool = Path.Combine(dir, OperatingSystem.IsWindows() ? "tool.exe" : "tool");
+        File.WriteAllText(tool, "");
+
+        Assert.Equal(tool, ShellEnvironment.FindExecutable("tool", $"\"{dir}\""));
+    }
+
+    [Fact]
     public void Missing_settings_are_defaults_without_a_load_failure()
     {
         var store = new SettingsStore(Path.Combine(_dir, "settings.json"));
@@ -67,7 +91,11 @@ public sealed class InfrastructureTests : IDisposable
             var store = new SettingsStore(path);
             Assert.Equal(24, store.Current.IntervalHours);
             Assert.True(store.LoadFailed);
-            Assert.Null(new RunHistoryStore(path).Latest); // the history store doesn't crash either
+            var history = new RunHistoryStore(path);
+            Assert.Null(history.Latest); // the history store doesn't crash either
+            history.Add(new RunReport());
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            Assert.Contains("intervalHours", File.ReadAllText(path)); // and leaves the unreadable file alone
         }
         finally
         {

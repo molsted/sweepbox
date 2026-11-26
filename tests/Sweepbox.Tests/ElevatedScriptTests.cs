@@ -6,7 +6,8 @@ public sealed class ElevatedScriptTests
 {
     private static string Build(string path = @"C:\Windows\system32", IReadOnlyDictionary<string, string>? env = null,
         string exe = @"C:\ProgramData\chocolatey\bin\choco.exe", string[]? args = null) =>
-        ElevatedScript.Build(path, env ?? new Dictionary<string, string>(), exe, args ?? ["upgrade", "all", "--yes"], @"C:\Temp\x\output.log");
+        ElevatedScript.Build(path, env ?? new Dictionary<string, string>(), exe, args ?? ["upgrade", "all", "--yes"],
+            @"C:\Temp\x\output.log", @"C:\Windows\System32");
 
     [Fact]
     public void Script_switches_to_utf8_quotes_everything_and_returns_the_exit_code()
@@ -14,7 +15,7 @@ public sealed class ElevatedScriptTests
         var lines = Build(env: new Dictionary<string, string> { ["NO_COLOR"] = "1" }).Split("\r\n");
 
         Assert.Equal("@echo off", lines[0]);
-        Assert.Equal("chcp 65001 >nul", lines[1]);
+        Assert.Equal("\"C:\\Windows\\System32\\chcp.com\" 65001 >nul", lines[1]);
         Assert.Contains("set \"PATH=C:\\Windows\\system32\"", lines);
         Assert.Contains("set \"NO_COLOR=1\"", lines);
         Assert.Contains("\"C:\\ProgramData\\chocolatey\\bin\\choco.exe\" \"upgrade\" \"all\" \"--yes\" > \"C:\\Temp\\x\\output.log\" 2>&1", lines);
@@ -28,6 +29,15 @@ public sealed class ElevatedScriptTests
 
         Assert.Contains("set \"PATH=C:\\%%USERNAME%%\\bin\"", script);
         Assert.Contains("\"--except=100%%\"", script);
+    }
+
+    [Fact]
+    public void An_argument_ending_in_a_backslash_keeps_its_closing_quote()
+    {
+        var script = Build(args: ["--cache-location=C:\\cache\\"]);
+
+        // "…\\" so the child's argument parser doesn't read \" as an escaped quote.
+        Assert.Contains("\"--cache-location=C:\\cache\\\\\"", script);
     }
 
     [Theory]
@@ -47,13 +57,22 @@ public sealed class ElevatedScriptTests
         Assert.Throws<ArgumentException>(() => Build(exe: "C:\\x\".exe"));
     }
 
+    [Fact]
+    public void Path_for_elevation_drops_quotes_and_unsafe_entries()
+    {
+        var path = ElevatedScript.SafePath("C:\\Windows;\"C:\\Program Files\\Git\\cmd\";;C:\\bad\"dir;C:\\x\nY;C:\\ProgramData\\chocolatey\\bin");
+
+        Assert.Equal("C:\\Windows;C:\\Program Files\\Git\\cmd;C:\\ProgramData\\chocolatey\\bin", path);
+    }
+
     [Theory]
-    [InlineData("/opt/choco/choco.exe", true)]
+    [InlineData("/opt/choco/bin/choco.exe", true)]
+    [InlineData("/OPT/CHOCO/bin/choco.exe", true)]
+    [InlineData("/opt/chocolate/choco.exe", false)]   // a sibling that only shares the prefix
     [InlineData("/Users/ann/bin/choco.exe", false)]
-    [InlineData("/Users/ANN/bin/choco.exe", false)]
-    [InlineData("/tmp/x/choco.exe", false)]
+    [InlineData("/Users/Public/choco.exe", false)]
     [InlineData("choco.exe", false)]
-    [InlineData("/Users/anna/choco.exe", true)]
-    public void Only_executables_outside_user_writable_folders_may_run_elevated(string exe, bool expected) =>
-        Assert.Equal(expected, ElevatedScript.IsSafeExecutable(exe, ["/Users/ann", "/tmp"]));
+    [InlineData("/opt/choco/../evil/choco.exe", false)]
+    public void Only_executables_inside_admin_owned_folders_may_run_elevated(string exe, bool expected) =>
+        Assert.Equal(expected, ElevatedScript.IsAllowedExecutable(exe, ["/opt/choco", "/Program Files"]));
 }

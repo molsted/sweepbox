@@ -13,6 +13,24 @@ public static class AppBundleSwap
         Path.Combine(Path.GetDirectoryName(target)!, $".{Path.GetFileNameWithoutExtension(target)}-update-{Guid.NewGuid():N}.app");
 
     /// <summary>
+    /// Removes hidden staged or old copies a previous, interrupted update left next to <paramref name="target"/>.
+    /// </summary>
+    public static void CleanUpLeftovers(string target)
+    {
+        var parent = Path.GetDirectoryName(target)!;
+        var name = Path.GetFileNameWithoutExtension(target);
+        foreach (var pattern in new[] { $".{name}-update-*.app", $".{name}-old-*.app" })
+        foreach (var leftover in Directory.EnumerateDirectories(parent, pattern))
+        {
+            try { Directory.Delete(leftover, recursive: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Trace.WriteLine($"Update: could not remove leftover {leftover}: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Moves <paramref name="target"/> aside, moves <paramref name="staged"/> into its place, then deletes the
     /// old copy. Throws if the swap fails, after restoring the old bundle.
     /// </summary>
@@ -25,9 +43,18 @@ public static class AppBundleSwap
         {
             Directory.Move(staged, target);
         }
-        catch
+        catch (Exception swapError)
         {
-            Directory.Move(backup, target);
+            try
+            {
+                Directory.Move(backup, target);
+            }
+            catch (Exception rollbackError)
+            {
+                throw new IOException(
+                    $"Could not put the new app in place ({swapError.Message}) nor restore the old one ({rollbackError.Message}); it is at {backup}.",
+                    swapError);
+            }
             throw;
         }
 

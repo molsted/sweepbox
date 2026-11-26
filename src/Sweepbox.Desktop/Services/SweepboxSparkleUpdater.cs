@@ -53,6 +53,7 @@ public sealed class SweepboxSparkleUpdater : SparkleUpdater
 
                 // Copy next to the installed app first (same volume, so the swap is a rename), keeping
                 // the code signature and extended attributes; the installed app is untouched until then.
+                AppBundleSwap.CleanUpLeftovers(running);
                 staged = AppBundleSwap.StagingPathFor(running);
                 if (!Run("/usr/bin/ditto", bundle, staged))
                 {

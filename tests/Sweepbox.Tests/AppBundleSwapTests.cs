@@ -51,5 +51,18 @@ public sealed class AppBundleSwapTests : IDisposable
         Assert.EndsWith(".app", staged);
     }
 
+    [Fact]
+    public void Leftovers_from_an_interrupted_update_are_removed()
+    {
+        var target = Bundle("Sweepbox.app", "current");
+        Bundle(".Sweepbox-update-abc.app", "staged");
+        Bundle(".Sweepbox-old-def.app", "old");
+        Bundle("Other.app", "keep");
+
+        AppBundleSwap.CleanUpLeftovers(target);
+
+        Assert.Equal(["Other.app", "Sweepbox.app"], Directory.GetDirectories(_dir).Select(Path.GetFileName).Order());
+    }
+
     public void Dispose() => Directory.Delete(_dir, recursive: true);
 }

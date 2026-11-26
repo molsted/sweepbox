@@ -24,8 +24,8 @@ public sealed class SettingsStore(string path)
             {
                 if (_current is null)
                 {
-                    _current = (JsonFile.Read<AppSettings>(path, out var failed) ?? new AppSettings()).Normalize();
-                    _loadFailed = failed;
+                    _current = (JsonFile.Read<AppSettings>(path, out ReadFailure failure) ?? new AppSettings()).Normalize();
+                    _loadFailed = failure != ReadFailure.None;
                 }
                 return _current.Clone();
             }

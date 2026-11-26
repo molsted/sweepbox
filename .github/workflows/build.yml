@@ -115,7 +115,7 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
-            echo "::error::SPARKLE_PRIVATE_KEY is not set. Without it the appcast is not signed, so no existing install updates to this release. Add the repository secret (Settings -> Secrets and variables -> Actions), delete and re-push the tag."
+            echo "::error::SPARKLE_PRIVATE_KEY is not set. Without it the appcast is not signed, so no existing install updates to this release. Add it as a secret of the release environment (Settings -> Environments -> release) or of the repository, then delete and re-push the tag."
             exit 1
           fi
           VERSION="${GITHUB_REF_NAME#v}"
