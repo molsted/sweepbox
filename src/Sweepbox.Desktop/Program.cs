@@ -106,6 +106,8 @@ internal static partial class Program
 
     private static int HeadlessRun(AppPaths paths)
     {
+        if (OperatingSystem.IsWindows())
+            WindowsNotifications.Register();
         var services = new AppServices(paths);
         services.Engine.Output += Console.WriteLine;
         Console.CancelKeyPress += (_, e) =>

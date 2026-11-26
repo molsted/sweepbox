@@ -30,6 +30,8 @@
     <EmbeddedResource Include="..\..\installer\sparkle-public-key.txt" />
     <!-- Shipped next to the executable (and opened from the status window). -->
     <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <!-- Windows toast icon (referenced by the AppUserModelID registration); it must be a real file next to the executable. -->
+    <None Include="Assets\app-icon.png" Link="app-icon.png" Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
   <ItemGroup>
