@@ -81,8 +81,13 @@ public sealed class PackageInventory(
         }
     }
 
-    private static Dictionary<PackageKey, PackageSize?> Unknown(IEnumerable<InstalledPackage> packages) =>
-        packages.ToDictionary(PackageKey.Of, _ => (PackageSize?)null);
+    private static Dictionary<PackageKey, PackageSize?> Unknown(IEnumerable<InstalledPackage> packages)
+    {
+        var result = new Dictionary<PackageKey, PackageSize?>();
+        foreach (var p in packages)
+            result[PackageKey.Of(p)] = null;
+        return result;
+    }
 
     private static Dictionary<PackageKey, PackageSize?> Complete(IReadOnlyDictionary<PackageKey, PackageSize?> measured,
         IEnumerable<InstalledPackage> packages)

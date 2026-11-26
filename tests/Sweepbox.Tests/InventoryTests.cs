@@ -404,6 +404,36 @@ public sealed class InventoryTests
         Assert.Null(r[new("a", "y", PackageKind.Package)]);
     }
 
+    [Fact]
+    public async Task Measure_survives_duplicate_packages_when_a_manager_throws_or_cannot_run()
+    {
+        var runner = new FakeRunner();
+        var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
+        await InventoryFor(runner, new ThrowingManager(), new SizedManager("a", 5)).MeasureAsync(
+            [Inv("boom", "x", "x"), Inv("a", "y")], reports.Add, CancellationToken.None);
+        Assert.Equal(2, reports.Count);
+        Assert.Null(Assert.Single(reports[0]).Value);
+        Assert.Equal(5, Assert.Single(reports[1]).Value!.Bytes);
+
+        runner.Installed.Remove("brew");
+        reports.Clear();
+        await InventoryFor(runner, new ThrowingManager(), new SizedManager("a", 5)).MeasureAsync(
+            [Inv("boom", "x", "x"), Inv("a", "y")], reports.Add, CancellationToken.None);
+        Assert.Equal(2, reports.Count);
+        Assert.Null(Assert.Single(reports[0]).Value);
+    }
+
+    [Fact]
+    public async Task Measure_treats_cancellation_without_a_cancelled_token_as_a_failure()
+    {
+        var reports = new List<IReadOnlyDictionary<PackageKey, PackageSize?>>();
+        await InventoryFor(new FakeRunner(), new CancelingManager(), new SizedManager("a", 5)).MeasureAsync(
+            [Inv("boom", "x"), Inv("a", "y")], reports.Add, CancellationToken.None);
+        Assert.Equal(2, reports.Count);
+        Assert.Null(Assert.Single(reports[0]).Value);
+        Assert.Equal(5, Assert.Single(reports[1]).Value!.Bytes);
+    }
+
     private sealed class SizedManager(string id, long bytes, bool skipLast = false) : ThrowingManager
     {
         public override string Id => id;
