@@ -1,10 +1,13 @@
 using Sweepbox.Core.Managers;
+using Sweepbox.Core.Running;
 using Sweepbox.Core.Settings;
 
 namespace Sweepbox.Tests;
 
 public sealed class InventoryTests
 {
+    private readonly AppSettings _settings = new();
+
     [Fact]
     public void Brew_casks_take_the_newest_version_and_skip_blank_lines()
     {
@@ -218,4 +221,79 @@ public sealed class InventoryTests
     [InlineData("typescript", false)]
     [InlineData("npm-check", false)]
     public void Npm_protected_names(string name, bool expected) => Assert.Equal(expected, new NpmManager().IsProtected(name));
+
+    private const string NpmJson = """{"dependencies":{"typescript":{"version":"5.6.3"}}}""";
+
+    private PackageInventory InventoryFor(FakeRunner runner, params PackageManager[] managers) =>
+        new(() => _settings, _ => Task.FromResult<ICommandRunner>(runner), managers);
+
+    [Fact]
+    public async Task Inventory_lists_disabled_managers_and_skips_missing_ones()
+    {
+        _settings.Npm.Enabled = false;
+        var runner = new FakeRunner();
+        runner.Installed.Remove("brew");
+        runner.ProbeAnswers["ls --global --depth=0 --json"] = NpmJson;
+        var result = await InventoryFor(runner, new BrewManager(), new NpmManager()).ListAsync(CancellationToken.None);
+        var only = Assert.Single(result);
+        Assert.Equal("npm", only.ManagerId);
+        Assert.Equal(["typescript"], only.Packages.Select(p => p.Name));
+    }
+
+    [Fact]
+    public async Task Inventory_keeps_other_managers_when_one_throws()
+    {
+        var runner = new FakeRunner();
+        runner.ProbeAnswers["ls --global --depth=0 --json"] = NpmJson;
+        var result = await InventoryFor(runner, new ThrowingManager(), new NpmManager()).ListAsync(CancellationToken.None);
+        Assert.Equal(2, result.Count);
+        Assert.Equal("boom", result[0].Error);
+        Assert.Empty(result[0].Packages);
+        Assert.Null(result[1].Error);
+        Assert.Equal(["typescript"], result[1].Packages.Select(p => p.Name));
+    }
+
+    [Fact]
+    public async Task Inventory_propagates_cancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            InventoryFor(new FakeRunner(), new CancelingManager()).ListAsync(cts.Token));
+    }
+
+    [Fact]
+    public void Notes_follow_settings_and_elevation()
+    {
+        const string brewNote = "Homebrew will also remove dependencies that nothing else uses.";
+        const string chocoNote = "You'll be asked for administrator permission once per Chocolatey package.";
+        InstalledPackage[] both = [new("brew", "wget", null, PackageKind.Formula), new("choco", "git", null, PackageKind.Package)];
+        InstalledPackage[] npmOnly = [new("npm", "typescript", null, PackageKind.Package)];
+
+        Assert.Equal([brewNote, chocoNote], UninstallNotes.For(_settings, both, isElevated: false));
+        Assert.Equal([brewNote], UninstallNotes.For(_settings, both, isElevated: true));
+        Assert.Empty(UninstallNotes.For(_settings, npmOnly, isElevated: false));
+
+        _settings.Brew.Autoremove = false;
+        _settings.Choco.ElevateWithUac = false;
+        Assert.Empty(UninstallNotes.For(_settings, both, isElevated: false));
+    }
+
+    private class ThrowingManager : PackageManager
+    {
+        public override string Id => "boom";
+        public override string DisplayName => "Boom";
+        public override string ExecutableName => "brew";
+        public override bool IsSupportedOnThisOS => true;
+        public override bool IsEnabled(AppSettings settings) => true;
+        public override IReadOnlyList<CommandSpec> BuildSteps(AppSettings settings, string executable) => [];
+        public override Task<ManagerInventory> ListInstalledAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("boom");
+    }
+
+    private sealed class CancelingManager : ThrowingManager
+    {
+        public override Task<ManagerInventory> ListInstalledAsync(ICommandRunner runner, string executable, CancellationToken cancellationToken) =>
+            throw new OperationCanceledException(cancellationToken);
+    }
 }
