@@ -1,7 +1,6 @@
 // Renders Sweepbox's real windows off-screen with sample data, for the manual (user-docs/images).
 //   dotnet run --project tools/Screenshots -- <output dir>      then: python3 tools/frame_screenshots.py
 using System.Diagnostics;
-using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -21,8 +20,6 @@ using Sweepbox.Desktop.Views;
 
 var outDir = Path.GetFullPath(args.Length > 0 ? args[0] : "user-docs/images/raw");
 Directory.CreateDirectory(outDir);
-// The app runs with InvariantGlobalization; match it so numbers and dates don't depend on this machine's locale.
-CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
 AppBuilder.Configure<App>()
     .UseSkia()
@@ -42,7 +39,7 @@ foreach (var (theme, suffix) in new[] { (ThemeVariant.Light, ""), (ThemeVariant.
 
     foreach (var (services, platform) in new[] { (macServices, "macos"), (winServices, "windows") })
     {
-        Shot(new SettingsWindow { DataContext = new SettingsViewModel(services.Settings, platform == "windows" ? [new ChocoManager(), new NpmManager()] : services.Engine.Managers) },
+        Shot(new SettingsWindow { DataContext = new SettingsViewModel(services.Settings, platform == "windows" ? [new ChocoManager(), new NpmManager()] : [new BrewManager(), new NpmManager()]) },
             $"settings-{platform}{suffix}", fullHeight: true);
         Shot(new StatusWindow { DataContext = new StatusViewModel(services, () => { }) }, $"status-{platform}{suffix}");
         Shot(new StatusWindow { DataContext = new StatusViewModel(services, () => { }) }, $"status-log-{platform}{suffix}", selectTab: 2);
