@@ -163,7 +163,7 @@ To keep a formula at its current version, pin it in Terminal: `brew pin <name>`.
 
 - **Start Sweepbox when I log in**: adds a login item (macOS LaunchAgent / Windows *Run* entry).
 - **Automatically check for app updates**: when on, Sweepbox looks for a newer release once a day and shows the update window when it finds one. Turn it off and nothing is checked or downloaded in the background.
-- **Notify me when a run fails / succeeds**: system notifications with a summary, including space freed.
+- **Notify me when a run fails / succeeds**: system notifications with a summary, including space freed. They appear as Sweepbox, with its icon, in *System Settings → Notifications* on macOS and *Settings → System → Notifications* on Windows, where you can change how they are shown. On macOS, Sweepbox asks for permission once, the first time it starts.
 - **Step timeout**: a command running longer than this is stopped and reported as failed.
 - **Extra PATH directories**: only needed if Sweepbox reports a tool as *not found* although it is installed (see [Troubleshooting](#troubleshooting)).
 
@@ -286,6 +286,9 @@ Turn on *Ask for administrator rights (UAC)* in Settings, or start Sweepbox as a
 
 **A step was stopped after 30 minutes**
 Raise *Step timeout* in Settings, for example when large casks or packages download slowly.
+
+**No notifications on macOS**
+Notifications only work when Sweepbox runs from the **Applications** folder. macOS refuses them from anywhere else, for example straight from the disk image or the Downloads folder. Drag Sweepbox to Applications and start it from there. Then check that Sweepbox is allowed under *System Settings → Notifications*.
 
 **Where can I see exactly what happened?**
 *Status and Log… → History → Log*, or the logs folder (see [Files and folders](#files-and-folders)).

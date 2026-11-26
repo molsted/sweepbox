@@ -4,7 +4,7 @@
 
 - **.NET 10 SDK.** CI uses exactly `10.0.301` (see [Dependencies](#dependencies-and-lock-files)).
 - **Optional:** Python 3 with Pillow, to regenerate icons, screenshots or site graphics. Run `pip install -r tools/requirements-site.txt` to build the website.
-- **Optional:** Xcode 26+ on macOS (for the macOS 26 app icon) or Inno Setup 6 on Windows, to build installers. See [releasing.md](releasing.md).
+- **Optional:** Xcode 26+ on macOS (for the macOS 26 app icon; the license must be accepted and `xcode-select` must point at Xcode) or Inno Setup 6 on Windows, to build installers. See [releasing.md](releasing.md).
 
 ## Build, run, test
 
@@ -13,10 +13,18 @@ dotnet build Sweepbox.slnx
 dotnet test Sweepbox.slnx                                         # unit tests (Core only)
 dotnet test Sweepbox.slnx -c Release -p:RestoreLockedMode=true    # exactly what CI runs
 
-dotnet run --project src/Sweepbox.Desktop                         # the tray / menu bar app
-dotnet run --project src/Sweepbox.Desktop -- --dry-run            # print the commands a run would execute, then exit
-dotnet run --project src/Sweepbox.Desktop -- --run                # one real headless run
+dotnet run --project src/Sweepbox.Desktop -f net10.0                   # the tray / menu bar app
+dotnet run --project src/Sweepbox.Desktop -f net10.0 -- --dry-run      # print the commands a run would execute, then exit
+dotnet run --project src/Sweepbox.Desktop -f net10.0 -- --run          # one real headless run
 ```
+
+`-f net10.0` runs the cross-platform build; on Windows use `-f net10.0-windows10.0.19041.0` instead (the Windows target is what the installer ships).
+
+### Desktop targets
+
+`Sweepbox.Desktop` has two target frameworks: `net10.0` (macOS and the cross-platform build) and `net10.0-windows10.0.19041.0` (Windows, which the installer ships). With more than one target, `dotnet run` and `dotnet publish` need `-f` to pick one. `dotnet build` and `dotnet test` build both. The packaging scripts already pass `-f`.
+
+Native notifications have to be tried by hand. On macOS they work only when Sweepbox runs from the Applications folder, so a `dotnet run` build logs "not running from an app bundle" and shows nothing. Build the app with `scripts/package-macos.sh` and copy it to Applications to test them. On Windows they work from `dotnet run` too.
 
 > ⚠️ `--run`, **Run Now** and the scheduler really upgrade and clean the Homebrew/Chocolatey/npm installs on your machine. Use `--dry-run` to check what changed in the steps. To test the run flow safely, turn managers off in Settings or point `ExtraPath` at a folder of stub scripts.
 

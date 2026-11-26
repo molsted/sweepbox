@@ -42,7 +42,7 @@ foreach ($a in $Arch) {
     # transitive packages; publish then reuses that graph for its RID (--no-restore).
     dotnet restore $Project -p:RestoreLockedMode=true -nologo -v quiet
     if ($LASTEXITCODE) { throw "dotnet restore failed" }
-    dotnet publish $Project -c Release -r "win-$a" --self-contained --no-restore -p:DebugType=none -o $Publish -nologo -v quiet
+    dotnet publish $Project -c Release -f net10.0-windows10.0.19041.0 -r "win-$a" --self-contained --no-restore -p:DebugType=none -o $Publish -nologo -v quiet
     if ($LASTEXITCODE) { throw "dotnet publish failed" }
     Sign "$Publish\Sweepbox.exe"
 

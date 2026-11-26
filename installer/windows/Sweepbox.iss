@@ -100,3 +100,10 @@ begin
     end;
   end;
 end;
+
+// Remove the toast identity the app registers under HKCU at runtime.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\AppUserModelId\dk.sweepbox.desktop');
+end;

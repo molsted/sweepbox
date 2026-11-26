@@ -29,9 +29,9 @@ installer/, scripts/    macOS DMG and Windows Inno Setup packaging, clean script
 
 ```bash
 dotnet build Sweepbox.slnx
-dotnet test Sweepbox.slnx                                         # must pass before you finish
-dotnet test Sweepbox.slnx -c Release -p:RestoreLockedMode=true    # what CI runs
-dotnet run --project src/Sweepbox.Desktop -- --dry-run            # show the commands a run would execute
+dotnet test Sweepbox.slnx                                          # must pass before you finish
+dotnet test Sweepbox.slnx -c Release -p:RestoreLockedMode=true     # what CI runs
+dotnet run --project src/Sweepbox.Desktop -f net10.0 -- --dry-run  # show the commands a run would execute
 ```
 
 **Don't** run `--run`, Run Now or the scheduled app unless the user asks you to. They really upgrade and clean the machine's package managers.
