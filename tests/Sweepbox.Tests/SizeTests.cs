@@ -1,4 +1,5 @@
 using Sweepbox.Core.Managers;
+using Sweepbox.Core.Platform;
 using Sweepbox.Core.Running;
 
 namespace Sweepbox.Tests;
@@ -188,6 +189,81 @@ public sealed class SizeTests : IDisposable
         var sizes = await new ChocoManager().MeasureAsync(new FakeRunner(), "/fake/choco", [choco], CancellationToken.None);
         Assert.Single(sizes);
         Assert.Null(sizes[PackageKey.Of(choco)]);
+    }
+
+    // ---- Chocolatey estimates from "Apps & features". ----
+
+    private static InstalledProgram Prog(string name, long? kb = 1000, bool system = false, string? parent = null) =>
+        new(name, kb, system, parent);
+
+    private sealed class FakePrograms(params InstalledProgram[] programs) : IInstalledProgramsSource
+    {
+        public IReadOnlyList<InstalledProgram> Read() => programs;
+    }
+
+    [Fact]
+    public void Choco_exact_name_wins_over_prefix_matches()
+    {
+        var kb = ChocoManager.MatchEstimatedSizeKb("git", [Prog("GitHub Desktop", 5), Prog("Git", 7), Prog("Git LFS", 9)]);
+        Assert.Equal(7, kb);
+    }
+
+    [Fact]
+    public void Choco_prefix_needs_a_boundary_in_the_original_name()
+    {
+        Assert.Null(ChocoManager.MatchEstimatedSizeKb("git", [Prog("GitHub Desktop")]));
+    }
+
+    [Fact]
+    public void Choco_matches_a_single_prefix_candidate()
+    {
+        Assert.Equal(42, ChocoManager.MatchEstimatedSizeKb("vlc", [Prog("VLC media player", 42)]));
+        Assert.Equal(43, ChocoManager.MatchEstimatedSizeKb("7zip.install", [Prog("7-Zip 24.09 (x64)", 43)]));
+        Assert.Equal(44, ChocoManager.MatchEstimatedSizeKb("7zip.PORTABLE", [Prog("7-Zip 24.09 (x64)", 44)]));
+    }
+
+    [Fact]
+    public void Choco_duplicate_names_count_once()
+    {
+        Assert.Equal(10, ChocoManager.MatchEstimatedSizeKb("git", [Prog("Git", 10), Prog("Git", 4)]));
+        Assert.Equal(10, ChocoManager.MatchEstimatedSizeKb("vlc", [Prog("VLC media player", 10), Prog("VLC media player", 4)]));
+    }
+
+    [Fact]
+    public void Choco_two_distinct_prefix_candidates_are_ambiguous()
+    {
+        Assert.Null(ChocoManager.MatchEstimatedSizeKb("vlc", [Prog("VLC media player"), Prog("VLC 3 beta")]));
+    }
+
+    [Fact]
+    public void Choco_ignores_system_components_children_and_missing_sizes()
+    {
+        Assert.Null(ChocoManager.MatchEstimatedSizeKb("git", [Prog("Git", system: true)]));
+        Assert.Null(ChocoManager.MatchEstimatedSizeKb("git", [Prog("Git", parent: "KB123")]));
+        Assert.Null(ChocoManager.MatchEstimatedSizeKb("git", [Prog("Git", kb: null)]));
+        Assert.Null(ChocoManager.MatchEstimatedSizeKb("git", [Prog("Git", kb: 0)]));
+        Assert.Equal(3, ChocoManager.MatchEstimatedSizeKb("git", [Prog("Git", system: true), Prog("Git", 3)]));
+    }
+
+    [Fact]
+    public async Task Choco_measures_estimates_in_bytes_and_leaves_unmatched_unknown()
+    {
+        var git = Pkg("choco", "git", PackageKind.Package);
+        var other = Pkg("choco", "nothing-here", PackageKind.Package);
+        var sizes = await new ChocoManager(new FakePrograms(Prog("Git", 2))).MeasureAsync(
+            new FakeRunner(), "/fake/choco", [git, other], CancellationToken.None);
+        Assert.Equal(new PackageSize(2048, true), sizes[PackageKey.Of(git)]);
+        Assert.Null(sizes[PackageKey.Of(other)]);
+    }
+
+    [Fact]
+    public async Task Choco_cancelled_measuring_propagates()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new ChocoManager(new FakePrograms(Prog("Git"))).MeasureAsync(
+                new FakeRunner(), "/fake/choco", [Pkg("choco", "git", PackageKind.Package)], cts.Token));
     }
 
     // ---- Homebrew casks. Fixtures are trimmed from real `brew info --json=v2 --cask` output. ----

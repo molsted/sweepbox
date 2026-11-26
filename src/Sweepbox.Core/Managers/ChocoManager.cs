@@ -1,3 +1,4 @@
+using Sweepbox.Core.Platform;
 using Sweepbox.Core.Running;
 using Sweepbox.Core.Settings;
 
@@ -5,6 +6,15 @@ namespace Sweepbox.Core.Managers;
 
 public sealed class ChocoManager : PackageManager
 {
+    private readonly IInstalledProgramsSource? _programs;
+
+    /// <summary>Reads "Apps &amp; features" from the registry on Windows; elsewhere sizes stay unknown.</summary>
+    public ChocoManager() : this(OperatingSystem.IsWindows() ? new RegistryInstalledPrograms() : null)
+    {
+    }
+
+    public ChocoManager(IInstalledProgramsSource? programs) => _programs = programs;
+
     public override string Id => "choco";
     public override string DisplayName => "Chocolatey";
     public override string ExecutableName => "choco";
@@ -108,5 +118,82 @@ public sealed class ChocoManager : PackageManager
             if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && names.Contains(name[..^suffix.Length]))
                 return name[..^suffix.Length];
         return null;
+    }
+
+    /// <summary>
+    /// Estimates each package from its "Apps &amp; features" entry (Windows' own EstimatedSize, so never exact).
+    /// The registry is read once per call, off the calling thread.
+    /// </summary>
+    public override async Task<IReadOnlyDictionary<PackageKey, PackageSize?>> MeasureAsync(ICommandRunner runner, string executable,
+        IReadOnlyList<InstalledPackage> packages, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = Unknown(packages).ToDictionary();
+        if (_programs is null || packages.Count == 0)
+            return result;
+
+        var programs = await Task.Run(() => _programs.Read(), cancellationToken);
+        foreach (var p in packages)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (MatchEstimatedSizeKb(p.Name, programs) is { } kb)
+                result[PackageKey.Of(p)] = new PackageSize(kb * 1024, true);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// The size in KiB of the one "Apps &amp; features" entry that belongs to a Chocolatey package, or null when none or
+    /// several could. Names are compared as lowercase letters and digits only. Entries that are system components,
+    /// child entries (updates) or have no size are ignored, and entries with the same name (HKLM and HKCU, 32- and
+    /// 64-bit) collapse into one, keeping the largest size. An exact name match wins; otherwise a name that starts with
+    /// the id counts if the original name has a boundary right after it ("7-Zip 24.09" for 7zip, not "GitHub" for git),
+    /// and only when exactly one such entry exists.
+    /// </summary>
+    internal static long? MatchEstimatedSizeKb(string packageId, IReadOnlyList<InstalledProgram> programs)
+    {
+        var id = packageId;
+        foreach (var suffix in new[] { ".install", ".portable" })
+            if (id.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                id = id[..^suffix.Length];
+                break;
+            }
+        id = Normalize(id);
+        if (id.Length == 0)
+            return null;
+
+        var candidates = new Dictionary<string, (string Name, long Kb)>();
+        foreach (var p in programs)
+        {
+            if (p.SystemComponent || !string.IsNullOrEmpty(p.ParentKeyName) || p.EstimatedSizeKb is not > 0 || string.IsNullOrEmpty(p.DisplayName))
+                continue;
+            var key = Normalize(p.DisplayName);
+            if (key.Length == 0)
+                continue;
+            if (!candidates.TryGetValue(key, out var existing) || p.EstimatedSizeKb.Value > existing.Kb)
+                candidates[key] = (p.DisplayName, p.EstimatedSizeKb.Value);
+        }
+
+        if (candidates.TryGetValue(id, out var exact))
+            return exact.Kb;
+
+        var matches = candidates.Where(c => c.Key.StartsWith(id, StringComparison.Ordinal) && BoundaryAfter(c.Value.Name, id.Length)).ToList();
+        return matches.Count == 1 ? matches[0].Value.Kb : null;
+    }
+
+    private static string Normalize(string s) =>
+        string.Concat(s.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant));
+
+    /// <summary>True when the original name continues with a boundary after its first <paramref name="letters"/> letters/digits.</summary>
+    private static bool BoundaryAfter(string name, int letters)
+    {
+        var seen = 0;
+        for (var i = 0; i < name.Length; i++)
+        {
+            if (char.IsLetterOrDigit(name[i]) && ++seen == letters)
+                return i + 1 < name.Length && (char.IsDigit(name[i + 1]) || name[i + 1] is ' ' or '(' or '-' or '_' or '.');
+        }
+        return false;
     }
 }
